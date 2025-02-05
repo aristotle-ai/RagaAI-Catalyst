@@ -63,17 +63,26 @@ class Tracer(AgenticTracing):
 
     ):
         """
-        Initializes a Tracer object. 
-
-        Args:
+        Initialize a Tracer object for logging and tracing activities within a machine learning project.
+        
+        This constructor sets up the tracer by configuring various parameters, enhancing metadata, and validating the project name through an HTTP GET request. It prepares user details, auto instrumentation settings, and trace identifiers, and then initializes attributes required for trace management. If the project name is not found within the retrieved projects, a ValueError is raised. Any issues during the HTTP request will raise a requests.exceptions.RequestException.
+        
+        Parameters:
             project_name (str): The name of the project.
             dataset_name (str): The name of the dataset.
-            tracer_type (str, optional): The type of tracer. Defaults to None.
-            pipeline (dict, optional): The pipeline configuration. Defaults to None.
-            metadata (dict, optional): The metadata. Defaults to None.
-            description (str, optional): The description. Defaults to None.
-            upload_timeout (int, optional): The upload timeout in seconds. Defaults to 30.
-            update_llm_cost (bool, optional): Whether to update model costs from GitHub. Defaults to True.
+            trace_name (str, optional): Custom name for the trace; if not provided, a timestamped name is generated.
+            tracer_type (str, optional): The type of tracer to initialize (e.g., "langchain" or "llamaindex").
+            pipeline (dict, optional): Configuration details for the pipeline.
+            metadata (dict, optional): Initial metadata for the tracer; this will be enhanced with additional context.
+            description (str, optional): A description of the tracing session.
+            upload_timeout (int, optional): Timeout in seconds for uploading trace data. Defaults to 30.
+            update_llm_cost (bool, optional): Previously used to update model costs from GitHub; maintained for compatibility but no longer updates model costs.
+            auto_instrumentation (bool or dict, optional): Controls automatic instrumentation of components. If a boolean is provided, all supported components ("llm", "tool", "agent", "user_interaction", "file_io", "network", "custom") are uniformly enabled or disabled. If a dictionary is provided, missing keys default to True.
+            interval_time (int, optional): Interval time in seconds for trace-related periodic operations.
+        
+        Raises:
+            ValueError: If the specified project_name is not found in the list of projects retrieved from the server.
+            requests.exceptions.RequestException: If the HTTP GET request to retrieve the projects list fails.
         """
 
         user_detail = {

@@ -40,6 +40,32 @@ logging_level = (
 
 class LLMTracerMixin:
     def __init__(self, *args, **kwargs):
+        """
+        Initialize an instance of the LLMTracerMixin class.
+        
+        This constructor sets up the tracing and instrumentation environment for LLM calls. It first calls the superclass initializer with any provided arguments, then initializes various attributes used for tracking file operations, patch applications, model costs, tokens, and tracing details for network and user interactions. The model costs are loaded from the global 'model_cost'; if this fails, a default cost dictionary is used.
+        
+        Parameters:
+            *args: Variable length argument list passed to the superclass initializer.
+            **kwargs: Arbitrary keyword arguments passed to the superclass initializer.
+        
+        Attributes:
+            file_tracker (TrackName): Instance for tracking file names.
+            patches (list): List to store applied patches.
+            model_costs (dict): Dictionary with cost details for input and output tokens, sourced from 'model_cost' or set to a default.
+            MAX_PARAMETERS_TO_DISPLAY (int): Maximum number of parameters to display in tracing output.
+            current_llm_call_name (contextvars.ContextVar): Context variable to track the current LLM call name across asynchronous calls.
+            component_network_calls (dict): Dictionary to store components related to network call tracing.
+            component_user_interaction (dict): Dictionary to store components related to user interaction tracing.
+            current_component_id: Identifier for the current active tracing component.
+            total_tokens (int): Cumulative count of tokens processed.
+            total_cost (float): Cumulative cost incurred by LLM calls.
+            llm_data (dict): Dictionary to capture additional LLM-related tracing data.
+            auto_instrument_llm (bool): Flag to enable automatic instrumentation of LLM calls.
+            auto_instrument_user_interaction (bool): Flag to enable automatic instrumentation of user interactions.
+            auto_instrument_file_io (bool): Flag to enable automatic instrumentation of file I/O operations.
+            auto_instrument_network (bool): Flag to enable automatic instrumentation of network calls.
+        """
         super().__init__(*args, **kwargs)
         self.file_tracker = TrackName()
         self.patches = []
