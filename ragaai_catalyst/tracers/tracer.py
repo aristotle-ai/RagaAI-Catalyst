@@ -133,7 +133,6 @@ class Tracer(AgenticTracing):
         self.start_time = datetime.datetime.now().astimezone().isoformat()
         self.model_cost_dict = model_cost
         self.user_context = ""  # Initialize user_context to store context from add_context
-        self.user_metrics = []
         
         try:
             response = requests.get(
