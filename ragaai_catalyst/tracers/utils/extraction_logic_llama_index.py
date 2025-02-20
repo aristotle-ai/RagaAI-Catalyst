@@ -2,7 +2,7 @@ import json
 from typing import Dict, Any, Optional
 
 
-def extract_llama_index_data(data):
+def extract_llama_index_data(data, user_context=""):
     """
     Transform llama_index trace data into standardized format
     """
@@ -35,7 +35,9 @@ def extract_llama_index_data(data):
                 return prompt
 
 
-    def get_context(data):
+    def get_context(data, user_context):
+        if user_context:
+            return user_context
         for span in data:
             if span["event_type"]=="RetrievalEndEvent":
                 context = span.get("text", "")
@@ -63,7 +65,7 @@ def extract_llama_index_data(data):
     # Process traces
     if "traces" in data:
         prompt = get_prompt(data["traces"])
-        context = get_context(data["traces"])
+        context = get_context(data["traces"], user_context)
         response = get_response(data["traces"])
         system_prompt = get_system_prompt(data["traces"])
 

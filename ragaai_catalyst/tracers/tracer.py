@@ -34,6 +34,9 @@ from ragaai_catalyst import RagaAICatalyst
 from ragaai_catalyst.tracers.agentic_tracing import AgenticTracing, TrackName
 from ragaai_catalyst.tracers.agentic_tracing.tracers.llm_tracer import LLMTracerMixin
 
+from ragaai_catalyst.tracers.utils.extraction_logic_llama_index import extract_llama_index_data
+from ragaai_catalyst.tracers.utils.convert_llama_instru_callback import convert_llamaindex_instrumentation_to_callback
+
 logger = logging.getLogger(__name__)
 
 class Tracer(AgenticTracing):
@@ -355,7 +358,10 @@ class Tracer(AgenticTracing):
                 raise ValueError("LlamaIndex tracer was not started")
 
             user_detail = self._pass_user_data()
-            converted_back_to_callback = self.llamaindex_tracer.stop()
+            data = self.llamaindex_tracer.stop()
+
+            llamaindex_instrumentation_data = extract_llama_index_data(data, self.user_context)
+            converted_back_to_callback = convert_llamaindex_instrumentation_to_callback(llamaindex_instrumentation_data)
 
             filepath_3 = os.path.join(os.getcwd(), "llama_final_result.json")
             with open(filepath_3, 'w') as f:

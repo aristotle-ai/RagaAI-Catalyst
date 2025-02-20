@@ -412,13 +412,13 @@ class LlamaIndexInstrumentationTracer:
 
         }
 
-        with open('new_llamaindex_traces.json', 'w') as f:
-            json.dump([final_traces], f, default=str, indent=4)
+        # with open('new_llamaindex_traces.json', 'w') as f:
+        #     json.dump([final_traces], f, default=str, indent=4)
         
-        llamaindex_instrumentation_data = extract_llama_index_data([final_traces])
-        converted_back_to_callback = convert_llamaindex_instrumentation_to_callback(llamaindex_instrumentation_data)
+        # llamaindex_instrumentation_data = extract_llama_index_data([final_traces])
+        # converted_back_to_callback = convert_llamaindex_instrumentation_to_callback(llamaindex_instrumentation_data)
 
          # Just indicate tracing is stopped
         self.is_tracing = False
         print("Tracing stopped.")
-        return converted_back_to_callback
+        return [final_traces]
