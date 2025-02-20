@@ -32,7 +32,9 @@ class UploadTraces:
             "embed_model": {"columnType":"pipeline"},
             "log_source": {"columnType": "metadata"},
             "vector_store":{"columnType":"pipeline"},
-            "feedback": {"columnType":"feedBack"}
+            "feedback": {"columnType":"feedBack"},
+            "system_prompt": {"columnType":"system_prompt"},
+            "expected_response": {"columnType":"expected_response"}
         }
 
         if additional_metadata_keys:
@@ -141,4 +143,4 @@ class UploadTraces:
             self._insert_traces(presignedUrl)
             print("Traces uploaded")
         except Exception as e:
-            print(f"Error while uploading agentic traces: {e}")
+            print(f"Error while uploading traces: {e}")

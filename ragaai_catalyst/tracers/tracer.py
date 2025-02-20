@@ -134,6 +134,7 @@ class Tracer(AgenticTracing):
         self.start_time = datetime.datetime.now().astimezone().isoformat()
         self.model_cost_dict = model_cost
         self.user_context = ""  # Initialize user_context to store context from add_context
+        self.user_gt = ""  # Initialize user_gt to store ground truth from add_gt
         
         try:
             response = requests.get(
@@ -360,7 +361,7 @@ class Tracer(AgenticTracing):
             user_detail = self._pass_user_data()
             data = self.llamaindex_tracer.stop()
 
-            llamaindex_instrumentation_data = extract_llama_index_data(data, self.user_context)
+            llamaindex_instrumentation_data = extract_llama_index_data(data, self.user_context, self.user_gt)
             converted_back_to_callback = convert_llamaindex_instrumentation_to_callback(llamaindex_instrumentation_data)
 
             filepath_3 = os.path.join(os.getcwd(), "llama_final_result.json")
@@ -507,3 +508,10 @@ class Tracer(AgenticTracing):
             self.user_context = context
         else:
             raise TypeError("context must be a string")
+
+    def add_gt(self, gt):
+
+        if isinstance(gt, str):
+            self.user_gt = gt
+        else:
+            raise TypeError("gt must be a string")
