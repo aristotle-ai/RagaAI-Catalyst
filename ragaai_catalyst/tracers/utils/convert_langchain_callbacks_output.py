@@ -7,8 +7,12 @@ def convert_langchain_callbacks_output(result, project_name="", metadata="", pip
         "session_id": "NA",
         "metadata" : metadata,
         "pipeline" : pipeline,
+        "metrics": [],
         "traces" : []
     }]
+
+    initial_struc[0]["metrics"] = result["metrics"]
+
     traces_data = []
 
     prompt = result["data"]["prompt"]

@@ -20,6 +20,8 @@ import json
 import numpy as np
 from opentelemetry.sdk import trace as trace_sdk
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
+from typing import List, Any, Dict
+
 from ragaai_catalyst.tracers.exporters.file_span_exporter import FileSpanExporter
 from ragaai_catalyst.tracers.exporters.raga_exporter import RagaExporter
 from ragaai_catalyst.tracers.instrumentators import (
@@ -131,6 +133,7 @@ class Tracer(AgenticTracing):
         self.start_time = datetime.datetime.now().astimezone().isoformat()
         self.model_cost_dict = model_cost
         self.user_context = ""  # Initialize user_context to store context from add_context
+        self.user_metrics = []
         
         try:
             response = requests.get(
@@ -319,7 +322,14 @@ class Tracer(AgenticTracing):
                 combined_metadata.update(additional_metadata)
 
             langchain_traces = langchain_tracer_extraction(data, self.user_context)
+
+            # Add metrics to trace before saving
+            if self.user_metrics:
+                langchain_traces["metrics"] = self.user_metrics
+
             final_result = convert_langchain_callbacks_output(langchain_traces)
+            
+            import pdb; pdb.set_trace()
             
             # Safely set required fields in final_result
             if final_result and isinstance(final_result, list) and len(final_result) > 0:
@@ -501,3 +511,56 @@ class Tracer(AgenticTracing):
             self.user_context = context
         else:
             raise TypeError("context must be a string")
+
+    def add_metrics(
+        self,
+        name: str | List[Dict[str, Any]] | Dict[str, Any] = None,
+        score: float | int = None,
+        reasoning: str = "",
+        cost: float = None,
+        latency: float = None,
+        metadata: Dict[str, Any] = None,
+        config: Dict[str, Any] = None,
+    ):
+        if isinstance(name, str):
+            metrics = [{
+                "name": name,
+                "score": score,
+                "reasoning": reasoning,
+                "cost": cost,
+                "latency": latency,
+                "metadata": metadata or {},
+                "config": config or {}
+            }]
+        else:
+            # Handle dict or list input
+            metrics = name if isinstance(name, list) else [name] if isinstance(name, dict) else []
+        
+        try:
+            for metric in metrics:
+                if not isinstance(metric, dict):
+                    raise ValueError(f"Expected dict, got {type(metric)}")
+
+                if "name" not in metric or "score" not in metric:
+                    raise ValueError("Metric must contain 'name' and 'score' fields")
+
+
+                formatted_metric = {
+                    "name": metric["name"],
+                    "score": metric["score"],
+                    "reason": metric.get("reasoning", ""),
+                    "source": "user",
+                    "cost": metric.get("cost"),
+                    "latency": metric.get("latency"),
+                    "metadata": metric.get("metadata", {}),
+                    "mappings": [],
+                    "config": metric.get("config", {})
+                }
+
+                self.user_metrics.append(formatted_metric)
+
+
+        except ValueError as e:
+            logger.error(f"Validation Error: {e}")
+        except Exception as e:
+            logger.error(f"Error adding metric: {e}")
