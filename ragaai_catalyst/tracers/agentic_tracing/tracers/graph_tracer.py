@@ -82,7 +82,7 @@ class GraphTracerMixin:
         component = {
             "id": component_id,
             "hash_id": hash_id,
-            "type": "graph",
+            "type": "langgraph/graph",
             "name": name,
             "start_time": start_time,
             "end_time": end_time,
