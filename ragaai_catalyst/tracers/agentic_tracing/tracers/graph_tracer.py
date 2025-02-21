@@ -28,9 +28,6 @@ class GraphTracerMixin:
         @functools.wraps(original_graph) 
         def wrapped_compile(graph_self, *args, **kwargs):
             graph = original_graph(graph_self, *args, **kwargs)
-            node_info = {}
-            node_info['nodes'] = graph.nodes
-            node_info['channels'] = graph.channels
             original_stream = graph.stream
             
             @functools.wraps(original_stream)
@@ -55,13 +52,15 @@ class GraphTracerMixin:
                                 "usage_metadata": getattr(message, 'usage_metadata', None)  # Safely get 'usage_metadata' or return None
                             }
                             processed_events.append(processed_event)
-
                 state = list(graph.get_state(config))
+                graph_info = graph.get_graph()
+                nodes, edges = graph_info.nodes, graph_info.edges
                 metadata = {
                     "state": state,
                     "events": events_object,
                     "config": config,
-                    "node_info": node_info
+                    "nodes": nodes,
+                    "edges": edges,
                 }
                 
                 self.trace_graph(name="graph", metadata=metadata)
@@ -72,11 +71,13 @@ class GraphTracerMixin:
         module.StateGraph.compile = wrapped_compile
 
     def create_graph_component(self, component_id: str, hash_id: str, name: str, 
-                            state: Dict, node_info: Dict, events: List,
+                            state: Dict, nodes: Dict, edges: Dict, events: List,
                             start_time: str, metadata: Dict = None) -> Dict:
         end_time = datetime.now().astimezone().isoformat()
         
-        sanitized_node_info = self.sanitize_graph_data(node_info)
+        sanitized_state = self.sanitize_graph_data(state)
+        sanitized_nodes = self.sanitize_graph_data(nodes)
+        sanitized_edges = self.sanitize_graph_data(edges)
         sanitized_events = self.sanitize_graph_data(events)
         
         component = {
@@ -90,8 +91,9 @@ class GraphTracerMixin:
             "source_hash_id": None,
             "parent_id": None,
             "data": {
-                "state": state,
-                "node_info": sanitized_node_info,
+                "state": sanitized_state,
+                "node_info": sanitized_nodes,
+                "edge_info": sanitized_edges,
                 "events": sanitized_events,
                 "metadata": metadata or {}
             }
@@ -115,10 +117,12 @@ class GraphTracerMixin:
         
         # Enhanced metadata with node information
         state = metadata.get("state", {})
-        node_info = metadata.get("node_info", {})
         events = metadata.get("events", [])
+        nodes = metadata.get("nodes", [])
+        edges = metadata.get("edges", [])
         del metadata['state']
-        del metadata['node_info']
+        del metadata['nodes']
+        del metadata['edges']
         del metadata['events']
         enhanced_metadata = metadata or {}
 
@@ -127,7 +131,8 @@ class GraphTracerMixin:
             hash_id=generate_unique_hash(name, enhanced_metadata),
             name=name,
             state=state,
-            node_info=node_info,
+            nodes=nodes,
+            edges = edges,
             events = events,
             start_time=start_time,
             metadata=enhanced_metadata
