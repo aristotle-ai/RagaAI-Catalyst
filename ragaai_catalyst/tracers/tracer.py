@@ -322,7 +322,8 @@ class Tracer(AgenticTracing):
             if additional_metadata:
                 combined_metadata.update(additional_metadata)
 
-            langchain_traces = langchain_tracer_extraction(data, self.user_context)
+            # Convert to Langchain Callbacks
+            langchain_traces = langchain_tracer_extraction(data, self.user_context, self.user_gt)
             final_result = convert_langchain_callbacks_output(langchain_traces)
             
             # Safely set required fields in final_result

@@ -1,7 +1,7 @@
 import json
 import uuid
 
-def langchain_tracer_extraction(data, user_context=""):
+def langchain_tracer_extraction(data, user_context="", user_gt=""):
     trace_aggregate = {}
     import uuid
 
@@ -62,21 +62,30 @@ def langchain_tracer_extraction(data, user_context=""):
                 if item["event"] == "retriever_end":
                     context = item["documents"][0]["page_content"].replace('\n', ' ')
                     return context
-        # if "chat_model_calls" in data and data["chat_model_calls"] != []:
-        #     for item in data["chat_model_calls"]:
-        #         messages = item["messages"][0]
-        #         for message in messages:
-        #             if message["type"]=="system":
-        #                 content = message["content"].strip().replace('\n', ' ')
-        #                 return content
-
+    
+    def get_system_prompt(data):
+        if "chat_model_calls" in data and data["chat_model_calls"] != []:
+            for item in data["chat_model_calls"]:
+                messages = item["messages"][0]
+                for message in messages:
+                    if message["type"]=="system":
+                        content = message["content"].strip().replace('\n', ' ')
+                        return content
 
     prompt = get_prompt(data)
     response = get_response(data)
     context = get_context(data, user_context)
+    system_prompt = get_system_prompt(data)
+    
+    if user_gt:
+        expected_response = user_gt
+    else:
+        expected_response = ""
 
     trace_aggregate["data"]["prompt"]=prompt
     trace_aggregate["data"]["response"]=response
     trace_aggregate["data"]["context"]=context
+    trace_aggregate["data"]["system_prompt"]=system_prompt
+    trace_aggregate["data"]["expected_response"]=expected_response
 
     return trace_aggregate
