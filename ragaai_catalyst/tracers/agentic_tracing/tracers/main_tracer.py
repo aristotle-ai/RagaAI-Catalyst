@@ -15,6 +15,7 @@ from .agent_tracer import AgentTracerMixin
 from .network_tracer import NetworkTracer
 from .user_interaction_tracer import UserInteractionTracer
 from .custom_tracer import CustomTracerMixin
+from .graph_tracer import GraphTracerMixin
 from ..utils.span_attributes import SpanAttributes
 
 from ..data.data_structure import (
@@ -46,7 +47,7 @@ from ragaai_catalyst.tracers.upload_traces import UploadTraces
 
 
 class AgenticTracing(
-    BaseTracer, LLMTracerMixin, ToolTracerMixin, AgentTracerMixin, CustomTracerMixin
+    BaseTracer, LLMTracerMixin, ToolTracerMixin, AgentTracerMixin, CustomTracerMixin, GraphTracerMixin
 ):
     def __init__(self, user_detail, auto_instrumentation=None):
         # Initialize all parent classes
@@ -55,6 +56,7 @@ class AgenticTracing(
         ToolTracerMixin.__init__(self)
         AgentTracerMixin.__init__(self)
         CustomTracerMixin.__init__(self)
+        GraphTracerMixin.__init__(self)
 
         self.project_name = user_detail["project_name"]
         self.project_id = user_detail["project_id"]
@@ -85,6 +87,7 @@ class AgenticTracing(
             self.auto_instrument_file_io = True
             self.auto_instrument_network = True
             self.auto_instrument_custom = True
+            self.auto_instrument_graph = True
         else:
             # Set global active state
             self.is_active = True
@@ -104,6 +107,7 @@ class AgenticTracing(
                     "network", True
                 )
                 self.auto_instrument_custom = auto_instrumentation.get("custom", True)
+                self.auto_instrument_graph = auto_instrumentation.get("graph", True)
             else:
                 # If boolean provided, apply to all components
                 self.auto_instrument_llm = bool(auto_instrumentation)
@@ -113,6 +117,7 @@ class AgenticTracing(
                 self.auto_instrument_file_io = bool(auto_instrumentation)
                 self.auto_instrument_network = bool(auto_instrumentation)
                 self.auto_instrument_custom = bool(auto_instrumentation)
+                self.auto_instrument_graph = bool(auto_instrumentation)
 
         self.current_agent_id = contextvars.ContextVar("current_agent_id", default=None)
         self.agent_children = contextvars.ContextVar("agent_children", default=[])
@@ -205,6 +210,9 @@ class AgenticTracing(
 
         if self.auto_instrument_custom:
             self.instrument_custom_calls()
+            
+        if self.auto_instrument_graph:
+            self.instrument_graph_calls()
 
     def stop(self):
         """Stop tracing and save results"""
