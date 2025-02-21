@@ -1,4 +1,5 @@
 from audioop import add
+from configparser import InterpolationMissingOptionError
 import os
 import uuid
 import datetime
@@ -14,6 +15,7 @@ from ragaai_catalyst.tracers.langchain_callback import LangchainTracer
 from ragaai_catalyst.tracers.utils.convert_langchain_callbacks_output import convert_langchain_callbacks_output
 
 from ragaai_catalyst.tracers.utils.langchain_tracer_extraction_logic import langchain_tracer_extraction
+from ragaai_catalyst.tracers.utils.upload_rag_trace_metric import upload_rag_trace_metric
 from ragaai_catalyst.tracers.upload_traces import UploadTraces
 import tempfile
 import json
@@ -346,6 +348,13 @@ class Tracer(AgenticTracing):
                 print(filepath_3)
             else:
                 logger.warning("No valid langchain traces found in final_result")
+
+            ##Upload trace metrics
+            response = upload_rag_trace_metric(
+                json_file_path=filepath_3,
+                dataset_name=self.dataset_name,
+                project_name=self.project_name,
+            )
 
             # additional_metadata_keys = list(additional_metadata.keys()) if additional_metadata else None
             additional_metadata_dict = additional_metadata if additional_metadata else {}
