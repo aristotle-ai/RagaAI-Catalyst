@@ -540,8 +540,7 @@ class Tracer(AgenticTracing):
                                         response=response
                                         )
             result = result['data']
-            print("Score: ", result['data'][0]["score"])
-            print("Reason: ", result['data'][0]["reason"])
+            return result['data'][0]["score"], result['data'][0]["reason"]
 
         except ValueError as e:
             logger.error(f"Validation Error: {e}")
