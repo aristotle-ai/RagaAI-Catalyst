@@ -133,7 +133,7 @@ class UploadTraces:
 
     def upload_traces(self, additional_metadata_keys=None, additional_pipeline_keys=None):
         try:
-            self._create_dataset_schema_with_trace(additional_metadata_keys, additional_pipeline_keys)
+            # self._create_dataset_schema_with_trace(additional_metadata_keys, additional_pipeline_keys)
             presignedUrl = self._get_presigned_url()
             if presignedUrl is None:
                 return

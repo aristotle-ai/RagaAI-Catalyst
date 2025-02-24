@@ -16,6 +16,7 @@ from ragaai_catalyst.tracers.utils.convert_langchain_callbacks_output import con
 
 from ragaai_catalyst.tracers.utils.langchain_tracer_extraction_logic import langchain_tracer_extraction
 from ragaai_catalyst.tracers.utils.upload_rag_trace_metric import upload_rag_trace_metric
+from ragaai_catalyst.tracers.utils.create_dataset_schema_with_trace_rag import create_dataset_schema_with_trace_rag
 from ragaai_catalyst.tracers.upload_traces import UploadTraces
 import tempfile
 import json
@@ -362,8 +363,6 @@ class Tracer(AgenticTracing):
 
             final_result = convert_langchain_callbacks_output(langchain_traces)
             
-            import pdb; pdb.set_trace()
-            
             # Safely set required fields in final_result
             if final_result and isinstance(final_result, list) and len(final_result) > 0:
                 final_result[0]['project_name'] = user_detail.get('project_name', '')
@@ -380,15 +379,22 @@ class Tracer(AgenticTracing):
             else:
                 logger.warning("No valid langchain traces found in final_result")
 
+            # additional_metadata_keys = list(additional_metadata.keys()) if additional_metadata else None
+            additional_metadata_dict = additional_metadata if additional_metadata else {}
+
+            ## create dataset schema
+            response = create_dataset_schema_with_trace_rag(
+                dataset_name=self.dataset_name, 
+                project_name=self.project_name,
+                additional_metadata_keys=additional_metadata_dict
+            )
+
             ##Upload trace metrics
             response = upload_rag_trace_metric(
                 json_file_path=filepath_3,
                 dataset_name=self.dataset_name,
                 project_name=self.project_name,
             )
-
-            # additional_metadata_keys = list(additional_metadata.keys()) if additional_metadata else None
-            additional_metadata_dict = additional_metadata if additional_metadata else {}
 
             UploadTraces(json_file_path=filepath_3,
                          project_name=self.project_name,
