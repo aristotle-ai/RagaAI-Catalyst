@@ -383,27 +383,37 @@ class Tracer(AgenticTracing):
             additional_metadata_dict = additional_metadata if additional_metadata else {}
 
             ## create dataset schema
-            response = create_dataset_schema_with_trace_rag(
-                dataset_name=self.dataset_name, 
-                project_name=self.project_name,
-                additional_metadata_keys=additional_metadata_dict
-            )
+            try:
+                create_dataset_schema_with_trace_rag(
+                    dataset_name=self.dataset_name, 
+                    project_name=self.project_name,
+                    additional_metadata_keys=additional_metadata_dict
+                )
+            except Exception as e:
+                logger.warning(f"Error creating dataset schema: {e}")
 
             ##Upload trace metrics
-            response = upload_rag_trace_metric(
-                json_file_path=filepath_3,
-                dataset_name=self.dataset_name,
-                project_name=self.project_name,
-            )
+            try:
+                upload_rag_trace_metric(
+                    json_file_path=filepath_3,
+                    dataset_name=self.dataset_name,
+                    project_name=self.project_name,
+                )
+            except Exception as e:
+                logger.warning(f"Error uploading trace metrics: {e}")
 
-            UploadTraces(json_file_path=filepath_3,
+            ##Upload traces
+            try:
+                UploadTraces(json_file_path=filepath_3,
                          project_name=self.project_name,
                          project_id=self.project_id,
                          dataset_name=self.dataset_name,
                          user_detail=user_detail,
                          base_url=self.base_url
-                         ).upload_traces(additional_metadata_keys=additional_metadata_dict)
-            
+                         ).upload_traces()
+            except Exception as e:
+                logger.warning(f"Error uploading traces: {e}")
+                
             return 
 
         elif self.tracer_type == "llamaindex":
