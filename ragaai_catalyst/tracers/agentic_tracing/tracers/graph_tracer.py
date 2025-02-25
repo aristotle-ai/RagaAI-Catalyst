@@ -21,6 +21,10 @@ class GraphTracerMixin:
         if "langgraph.graph" in sys.modules:
             self.patch_langgraph_graph(sys.modules["langgraph.graph"])
             
+        wrapt.register_post_import_hook(
+            self.patch_langgraph_graph, "langgraph.graph"
+        )
+            
     def patch_langgraph_graph(self, module):
         """Patch the LangGraph graph class to track execution"""
         original_graph = module.StateGraph.compile
@@ -54,10 +58,11 @@ class GraphTracerMixin:
                             processed_events.append(processed_event)
                 state = list(graph.get_state(config))
                 graph_info = graph.get_graph()
+                import pdb; pdb.set_trace()
                 nodes, edges = graph_info.nodes, graph_info.edges
                 metadata = {
                     "state": state,
-                    "events": events_object,
+                    "events": processed_events,
                     "config": config,
                     "nodes": nodes,
                     "edges": edges,
@@ -146,6 +151,7 @@ class GraphTracerMixin:
     def sanitize_graph_data(self, data: Any) -> Any:
         """
         Sanitize graph data by converting complex objects to serializable format.
+        Handles Node objects, StructuredTool, and other LangChain specific types.
 
         Args:
             data: Any data structure that needs sanitization
@@ -159,13 +165,55 @@ class GraphTracerMixin:
             return [self.sanitize_graph_data(item) for item in data]
         elif isinstance(data, (str, int, float, bool, type(None))):
             return data
+        elif isinstance(data, type):
+            # Handle class types
+            return data.__name__
         elif hasattr(data, 'to_dict'):
+            # Handle objects with to_dict method
             return self.sanitize_graph_data(data.to_dict())
         elif hasattr(data, '__dict__'):
-            # This block is modified to handle specific custom types like HumanMessage, AIMessage, etc.
-            sanitized = {attr: self.sanitize_graph_data(getattr(data, attr)) for attr in vars(data) if not attr.startswith('_')}
-            sanitized['type'] = data.__class__.__name__
-            return sanitized
+            base_dict = {}
+            
+            # Handle Node objects specifically
+            if all(hasattr(data, attr) for attr in ['id', 'name', 'data', 'metadata']):
+                base_dict = {
+                    'id': data.id,
+                    'name': data.name,
+                    'data': self.sanitize_graph_data(data.data),
+                    'metadata': self.sanitize_graph_data(data.metadata)
+                }
+            else:
+                # Handle other objects with __dict__
+                base_dict = {
+                    attr: self.sanitize_graph_data(getattr(data, attr))
+                    for attr in vars(data)
+                    if not attr.startswith('_')
+                }
+            
+            # Add type information
+            base_dict['type'] = data.__class__.__name__
+            
+            # Special handling for StructuredTool and similar objects
+            if hasattr(data, 'name') and hasattr(data, 'description'):
+                base_dict.update({
+                    'name': data.name,
+                    'description': data.description
+                })
+                
+            # Handle function objects
+            if hasattr(data, '__call__'):
+                if hasattr(data, '__name__'):
+                    base_dict['function_name'] = data.__name__
+                else:
+                    base_dict['function_name'] = 'anonymous_function'
+                    
+            return base_dict
+        elif callable(data):
+            # Handle pure functions
+            return {
+                'type': 'function',
+                'name': getattr(data, '__name__', 'anonymous_function')
+            }
         else:
-            return str(data)  # As a last resort, convert to string if no other method is available.
-
+            # As a last resort, convert to string
+            return str(data)
