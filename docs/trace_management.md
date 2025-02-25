@@ -192,6 +192,22 @@ with tracer:
     tracer.add_context(context)
 ```
 
+#### Run tracer and execute_metrics locally
+
+```python
+with tracer:
+    score, reason = tracer.execute_metrics(
+        name="metric_name", # Hallucination
+        model="model", # gpt-4o-mini
+        provider="provider", # openai
+        prompt="prompt here",
+        context="context here",
+        response="response here"
+    )
+    print("Score:", score)
+    print("Reason:", reason)
+```
+
 #### Add rows to the uploaded tracer dataset
 
 ```python
