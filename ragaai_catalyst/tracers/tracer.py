@@ -645,7 +645,7 @@ class Tracer(AgenticTracing):
             logger.error(f"Validation Error: {e}")
         except Exception as e:
             logger.error(f"Error adding metric: {e}")
-            
+
     def execute_metrics(self,
                         name: str,
                         model: str,
@@ -682,6 +682,20 @@ class Tracer(AgenticTracing):
                                         response=response
                                         )
             result = result['data']
+
+            formatted_metric = {
+                "name": name,
+                "score": result.get('data')[0].get("score"),
+                "reason": result.get('data')[0].get("reason"),
+                "source": "user",
+                "cost": result.get('data')[0].get("cost"),
+                "latency": result.get('data')[0].get("latency"),
+                "metadata": result.get('data')[0].get("metric_config", {}),
+                "mappings": [],
+                "config": result.get('data')[0].get("metric_config", {})
+            }
+            self.user_metrics.append(formatted_metric)
+            
             return result['data'][0]["score"], result['data'][0]["reason"]
 
         except ValueError as e:
