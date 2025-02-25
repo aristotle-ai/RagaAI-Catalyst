@@ -525,7 +525,8 @@ def ensure_uploader_running():
                 pid = os.fork()
                 if pid > 0:
                     # Exit from second parent
-                    sys.exit(0)
+                    #sys.exit(0)
+                    os._exit(0)
                     
                 # Redirect standard file descriptors
                 sys.stdout.flush()
