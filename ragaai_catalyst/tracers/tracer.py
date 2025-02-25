@@ -39,6 +39,8 @@ from ragaai_catalyst import RagaAICatalyst
 from ragaai_catalyst.tracers.agentic_tracing import AgenticTracing, TrackName
 from ragaai_catalyst.tracers.agentic_tracing.tracers.llm_tracer import LLMTracerMixin
 
+from ragaai_catalyst.tracers.agentic_tracing.upload.upload_local_metric import calculate_metric
+
 logger = logging.getLogger(__name__)
 
 class Tracer(AgenticTracing):
@@ -639,7 +641,48 @@ class Tracer(AgenticTracing):
                 }
 
                 self.user_metrics.append(formatted_metric)
+        except ValueError as e:
+            logger.error(f"Validation Error: {e}")
+        except Exception as e:
+            logger.error(f"Error adding metric: {e}")
+            
+    def execute_metrics(self,
+                        name: str,
+                        model: str,
+                        provider: str,
+                        prompt: str,
+                        context: str,
+                        response: str
+                        ) -> None:
+        """
+        Args:
+            name: metric name
+            model: model name
+            provider: provider name
+            prompt: prompt string
+            context: context string
+            response: response string
 
+        Raises:
+            ValueError: If metric name is empty
+            Exception: If error occurs while calculating metric
+        """
+        try:
+            if not name:
+                raise ValueError("Metric name is required")
+
+            result = calculate_metric(project_id=self.project_id,
+                                        metric_name=name,
+                                        model=model,
+                                        org_domain="raga",
+                                        provider=provider,
+                                        user_id="1",  # self.user_details['id'],
+                                        prompt=prompt,
+                                        context=context,
+                                        response=response
+                                        )
+            result = result['data']
+            return result['data'][0]["score"], result['data'][0]["reason"]
 
         except ValueError as e:
             logger.error(f"Validation Error: {e}")
