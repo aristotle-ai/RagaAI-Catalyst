@@ -413,7 +413,7 @@ class Tracer(AgenticTracing):
                          ).upload_traces()
             except Exception as e:
                 logger.warning(f"Error uploading traces: {e}")
-                
+
             return 
 
         elif self.tracer_type == "llamaindex":
@@ -422,19 +422,44 @@ class Tracer(AgenticTracing):
 
             user_detail = self._pass_user_data()
             converted_back_to_callback = self.llamaindex_tracer.stop()
+            
+            if self.user_metrics:
+                converted_back_to_callback[0]["metrics"] = self.user_metrics
 
             filepath_3 = os.path.join(os.getcwd(), "llama_final_result.json")
             with open(filepath_3, 'w') as f:
                 json.dump(converted_back_to_callback, f, default=str, indent=2)
 
-            if converted_back_to_callback:
+            ## create dataset schema
+            try:
+                create_dataset_schema_with_trace_rag(
+                    dataset_name=self.dataset_name, 
+                    project_name=self.project_name
+                )
+            except Exception as e:
+                logger.warning(f"Error creating dataset schema: {e}")
+
+            ##Upload trace metrics
+            try:
+                upload_rag_trace_metric(
+                    json_file_path=filepath_3,
+                    dataset_name=self.dataset_name,
+                    project_name=self.project_name,
+                )
+            except Exception as e:
+                logger.warning(f"Error uploading trace metrics: {e}")
+
+            try:
                 UploadTraces(json_file_path=filepath_3,
-                             project_name=self.project_name,
-                             project_id=self.project_id,
-                             dataset_name=self.dataset_name,
-                             user_detail=user_detail,
-                             base_url=self.base_url
-                             ).upload_traces()
+                            project_name=self.project_name,
+                            project_id=self.project_id,
+                            dataset_name=self.dataset_name,
+                            user_detail=user_detail,
+                            base_url=self.base_url
+                            ).upload_traces()
+            except Exception as e:
+                logger.warning(f"Error uploading traces: {e}")
+                
             return 
         else:
             super().stop()
