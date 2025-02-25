@@ -208,6 +208,21 @@ with tracer:
     print("Reason:", reason)
 ```
 
+#### Run tracer and add_metrics locally
+
+```python
+with tracer:
+    tracer.add_metrics(
+        name="metric_name", 
+        score="score", 
+        reasoning="reasoning",
+        cost=cost,
+        latency=latency,
+        metadata=metadata,
+        config=config
+    )
+```
+
 #### Add rows to the uploaded tracer dataset
 
 ```python
