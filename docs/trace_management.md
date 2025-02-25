@@ -213,13 +213,13 @@ with tracer:
 ```python
 with tracer:
     tracer.add_metrics(
-        name="metric_name", 
-        score="score", 
-        reasoning="reasoning",
-        cost=cost,
-        latency=latency,
-        metadata=metadata,
-        config=config
+        name="metric_name", #user_metric_name in str
+        score=score, #score in float
+        reasoning="reasoning", #reasoning in str
+        cost=cost, #cost in float
+        latency=latency, #latency in float
+        metadata=metadata, #metadata in dict
+        config=config #config in dict
     )
 ```
 
