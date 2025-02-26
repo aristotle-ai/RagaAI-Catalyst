@@ -11,7 +11,7 @@ def convert_langchain_callbacks_output(result, project_name="", metadata="", pip
         "traces" : []
     }]
 
-    initial_struc[0]["metrics"] = result["metrics"]
+    initial_struc[0]["metrics"] = result.get("metrics", [])
 
     traces_data = []
 

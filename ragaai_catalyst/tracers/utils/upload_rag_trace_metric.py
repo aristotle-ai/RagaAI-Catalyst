@@ -82,8 +82,6 @@ def upload_rag_trace_metric(json_file_path, dataset_name, project_name):
             "datasetName": dataset_name,
             "metrics": metrics
         })
-        print(payload)
-        print(headers)
         response = requests.request("POST",
                                     f"{RagaAICatalyst.BASE_URL}/v1/llm/trace/metrics",
                                     headers=headers,
