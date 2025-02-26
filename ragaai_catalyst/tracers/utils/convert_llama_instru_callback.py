@@ -16,6 +16,9 @@ def convert_llamaindex_instrumentation_to_callback(data):
     response = data["data"]["response"]
     context = data["data"]["context"]
     system_prompt = data["data"]["system_prompt"]
+    expected_response = data["data"]["expected_response"]
+
+    traces_data.append({"expected_response": expected_response})
 
     prompt_structured_data = {
         "event_type": "query",

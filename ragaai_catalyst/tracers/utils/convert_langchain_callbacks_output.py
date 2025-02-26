@@ -14,7 +14,10 @@ def convert_langchain_callbacks_output(result, project_name="", metadata="", pip
     prompt = result["data"]["prompt"]
     response = result["data"]["response"]
     context = result["data"]["context"]
-    final_prompt = ""
+    system_prompt = result["data"]["system_prompt"]
+    expected_response = result["data"]["expected_response"]
+
+    traces_data.append({"expected_response": expected_response})
 
     prompt_structured_data = {
         "traceloop.entity.input": json.dumps({
@@ -38,7 +41,7 @@ def convert_langchain_callbacks_output(result, project_name="", metadata="", pip
         }),
         "traceloop.entity.output": json.dumps({
             "kwargs": {
-                "text": prompt
+                "text": system_prompt
             }
         })
     }

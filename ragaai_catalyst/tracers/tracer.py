@@ -34,6 +34,9 @@ from ragaai_catalyst import RagaAICatalyst
 from ragaai_catalyst.tracers.agentic_tracing import AgenticTracing, TrackName
 from ragaai_catalyst.tracers.agentic_tracing.tracers.llm_tracer import LLMTracerMixin
 
+from ragaai_catalyst.tracers.utils.extraction_logic_llama_index import extract_llama_index_data
+from ragaai_catalyst.tracers.utils.convert_llama_instru_callback import convert_llamaindex_instrumentation_to_callback
+
 logger = logging.getLogger(__name__)
 
 class Tracer(AgenticTracing):
@@ -131,6 +134,7 @@ class Tracer(AgenticTracing):
         self.start_time = datetime.datetime.now().astimezone().isoformat()
         self.model_cost_dict = model_cost
         self.user_context = ""  # Initialize user_context to store context from add_context
+        self.user_gt = ""  # Initialize user_gt to store ground truth from add_gt
         
         try:
             response = requests.get(
@@ -349,7 +353,8 @@ class Tracer(AgenticTracing):
             if additional_metadata:
                 combined_metadata.update(additional_metadata)
 
-            langchain_traces = langchain_tracer_extraction(data, self.user_context)
+            # Convert to Langchain Callbacks
+            langchain_traces = langchain_tracer_extraction(data, self.user_context, self.user_gt)
             final_result = convert_langchain_callbacks_output(langchain_traces)
             
             # Safely set required fields in final_result
@@ -386,7 +391,10 @@ class Tracer(AgenticTracing):
                 raise ValueError("LlamaIndex tracer was not started")
 
             user_detail = self._pass_user_data()
-            converted_back_to_callback = self.llamaindex_tracer.stop()
+            data = self.llamaindex_tracer.stop()
+
+            llamaindex_instrumentation_data = extract_llama_index_data(data, self.user_context, self.user_gt)
+            converted_back_to_callback = convert_llamaindex_instrumentation_to_callback(llamaindex_instrumentation_data)
 
             filepath_3 = os.path.join(os.getcwd(), "llama_final_result.json")
             with open(filepath_3, 'w') as f:
@@ -532,3 +540,10 @@ class Tracer(AgenticTracing):
             self.user_context = context
         else:
             raise TypeError("context must be a string")
+
+    def add_gt(self, gt):
+
+        if isinstance(gt, str):
+            self.user_gt = gt
+        else:
+            raise TypeError("gt must be a string")
