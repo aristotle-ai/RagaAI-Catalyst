@@ -96,7 +96,7 @@ class Tracer(AgenticTracing):
             for key in ["llm", "tool", "agent", "user_interaction", "file_io", "network", "custom"]:
                 if key not in auto_instrumentation:
                     auto_instrumentation[key] = True
-        
+        self.model_custom_cost = {}
         super().__init__(user_detail=user_detail, auto_instrumentation=auto_instrumentation)
 
         self.project_name = project_name
@@ -148,7 +148,38 @@ class Tracer(AgenticTracing):
         else:
             self._upload_task = None
 
-        
+    def set_model_cost(self, cost_config):
+        """
+        Set custom cost values for a specific model.
+
+        Args:
+            cost_config (dict): Dictionary containing model cost configuration with keys:
+                - model_name (str): Name of the model
+                - input_cost_per_token (float): Cost per input token
+                - output_cost_per_token (float): Cost per output token
+
+        Example:
+            tracer.set_model_cost({
+                "model_name": "gpt-4",
+                "input_cost_per_million_token": 6,
+                "output_cost_per_million_token": 2.40
+            })
+        """
+        if not isinstance(cost_config, dict):
+            raise TypeError("cost_config must be a dictionary")
+
+        required_keys = {"model_name", "input_cost_per_million_token", "output_cost_per_million_token"}
+        if not all(key in cost_config for key in required_keys):
+            raise ValueError(f"cost_config must contain all required keys: {required_keys}")
+
+        model_name = cost_config["model_name"]
+        self.model_custom_cost[model_name] = {
+            "input_cost_per_token": float(cost_config["input_cost_per_million_token"])/ 1000000,
+            "output_cost_per_token": float(cost_config["output_cost_per_million_token"]) /1000000
+        }
+
+
+
     def set_dataset_name(self, dataset_name):
         """
         Reinitialize the Tracer with a new dataset name while keeping all other parameters the same.
