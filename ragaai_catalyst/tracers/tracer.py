@@ -14,12 +14,16 @@ from ragaai_catalyst.tracers.langchain_callback import LangchainTracer
 from ragaai_catalyst.tracers.utils.convert_langchain_callbacks_output import convert_langchain_callbacks_output
 
 from ragaai_catalyst.tracers.utils.langchain_tracer_extraction_logic import langchain_tracer_extraction
+from ragaai_catalyst.tracers.utils.upload_rag_trace_metric import upload_rag_trace_metric
+from ragaai_catalyst.tracers.utils.create_dataset_schema_with_trace_rag import create_dataset_schema_with_trace_rag
 from ragaai_catalyst.tracers.upload_traces import UploadTraces
 import tempfile
 import json
 import numpy as np
 from opentelemetry.sdk import trace as trace_sdk
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
+from typing import List, Any, Dict
+
 from ragaai_catalyst.tracers.exporters.file_span_exporter import FileSpanExporter
 from ragaai_catalyst.tracers.exporters.raga_exporter import RagaExporter
 from ragaai_catalyst.tracers.instrumentators import (
@@ -33,6 +37,8 @@ from ragaai_catalyst.tracers.llamaindex_instrumentation import LlamaIndexInstrum
 from ragaai_catalyst import RagaAICatalyst
 from ragaai_catalyst.tracers.agentic_tracing import AgenticTracing, TrackName
 from ragaai_catalyst.tracers.agentic_tracing.tracers.llm_tracer import LLMTracerMixin
+
+from ragaai_catalyst.tracers.agentic_tracing.upload.upload_local_metric import calculate_metric
 
 logger = logging.getLogger(__name__)
 
@@ -131,6 +137,7 @@ class Tracer(AgenticTracing):
         self.start_time = datetime.datetime.now().astimezone().isoformat()
         self.model_cost_dict = model_cost
         self.user_context = ""  # Initialize user_context to store context from add_context
+        self.user_metrics = []
         
         try:
             response = requests.get(
@@ -350,6 +357,11 @@ class Tracer(AgenticTracing):
                 combined_metadata.update(additional_metadata)
 
             langchain_traces = langchain_tracer_extraction(data, self.user_context)
+
+            # Add metrics to trace before saving
+            if self.user_metrics:
+                langchain_traces["metrics"] = self.user_metrics
+
             final_result = convert_langchain_callbacks_output(langchain_traces)
             
             # Safely set required fields in final_result
@@ -371,14 +383,38 @@ class Tracer(AgenticTracing):
             # additional_metadata_keys = list(additional_metadata.keys()) if additional_metadata else None
             additional_metadata_dict = additional_metadata if additional_metadata else {}
 
-            UploadTraces(json_file_path=filepath_3,
+            ## create dataset schema
+            try:
+                create_dataset_schema_with_trace_rag(
+                    dataset_name=self.dataset_name, 
+                    project_name=self.project_name,
+                    additional_metadata_keys=additional_metadata_dict
+                )
+            except Exception as e:
+                logger.warning(f"Error creating dataset schema: {e}")
+
+            ##Upload trace metrics
+            try:
+                upload_rag_trace_metric(
+                    json_file_path=filepath_3,
+                    dataset_name=self.dataset_name,
+                    project_name=self.project_name,
+                )
+            except Exception as e:
+                logger.warning(f"Error uploading trace metrics: {e}")
+
+            ##Upload traces
+            try:
+                UploadTraces(json_file_path=filepath_3,
                          project_name=self.project_name,
                          project_id=self.project_id,
                          dataset_name=self.dataset_name,
                          user_detail=user_detail,
                          base_url=self.base_url
-                         ).upload_traces(additional_metadata_keys=additional_metadata_dict)
-            
+                         ).upload_traces()
+            except Exception as e:
+                logger.warning(f"Error uploading traces: {e}")
+
             return 
 
         elif self.tracer_type == "llamaindex":
@@ -387,19 +423,44 @@ class Tracer(AgenticTracing):
 
             user_detail = self._pass_user_data()
             converted_back_to_callback = self.llamaindex_tracer.stop()
+            
+            if self.user_metrics:
+                converted_back_to_callback[0]["metrics"] = self.user_metrics
 
             filepath_3 = os.path.join(os.getcwd(), "llama_final_result.json")
             with open(filepath_3, 'w') as f:
                 json.dump(converted_back_to_callback, f, default=str, indent=2)
 
-            if converted_back_to_callback:
+            ## create dataset schema
+            try:
+                create_dataset_schema_with_trace_rag(
+                    dataset_name=self.dataset_name, 
+                    project_name=self.project_name
+                )
+            except Exception as e:
+                logger.warning(f"Error creating dataset schema: {e}")
+
+            ##Upload trace metrics
+            try:
+                upload_rag_trace_metric(
+                    json_file_path=filepath_3,
+                    dataset_name=self.dataset_name,
+                    project_name=self.project_name,
+                )
+            except Exception as e:
+                logger.warning(f"Error uploading trace metrics: {e}")
+
+            try:
                 UploadTraces(json_file_path=filepath_3,
-                             project_name=self.project_name,
-                             project_id=self.project_id,
-                             dataset_name=self.dataset_name,
-                             user_detail=user_detail,
-                             base_url=self.base_url
-                             ).upload_traces()
+                            project_name=self.project_name,
+                            project_id=self.project_id,
+                            dataset_name=self.dataset_name,
+                            user_detail=user_detail,
+                            base_url=self.base_url
+                            ).upload_traces()
+            except Exception as e:
+                logger.warning(f"Error uploading traces: {e}")
+                
             return 
         else:
             super().stop()
@@ -532,3 +593,111 @@ class Tracer(AgenticTracing):
             self.user_context = context
         else:
             raise TypeError("context must be a string")
+
+    def add_metrics(
+        self,
+        name: str | List[Dict[str, Any]] | Dict[str, Any] = None,
+        score: float | int = None,
+        reasoning: str = "",
+        cost: float = None,
+        latency: float = None,
+        metadata: Dict[str, Any] = None,
+        config: Dict[str, Any] = None,
+    ):
+        if isinstance(name, str):
+            metrics = [{
+                "name": name,
+                "score": score,
+                "reasoning": reasoning,
+                "cost": cost,
+                "latency": latency,
+                "metadata": metadata or {},
+                "config": config or {}
+            }]
+        else:
+            # Handle dict or list input
+            metrics = name if isinstance(name, list) else [name] if isinstance(name, dict) else []
+        
+        try:
+            for metric in metrics:
+                if not isinstance(metric, dict):
+                    raise ValueError(f"Expected dict, got {type(metric)}")
+
+                if "name" not in metric or "score" not in metric:
+                    raise ValueError("Metric must contain 'name' and 'score' fields")
+
+
+                formatted_metric = {
+                    "name": metric["name"],
+                    "score": metric["score"],
+                    "reason": metric.get("reasoning", ""),
+                    "source": "user",
+                    "cost": metric.get("cost"),
+                    "latency": metric.get("latency"),
+                    "metadata": metric.get("metadata", {}),
+                    "mappings": [],
+                    "config": metric.get("config", {})
+                }
+
+                self.user_metrics.append(formatted_metric)
+        except ValueError as e:
+            logger.error(f"Validation Error: {e}")
+        except Exception as e:
+            logger.error(f"Error adding metric: {e}")
+
+    def execute_metrics(self,
+                        name: str,
+                        model: str,
+                        provider: str,
+                        prompt: str,
+                        context: str,
+                        response: str
+                        ) -> None:
+        """
+        Args:
+            name: metric name
+            model: model name
+            provider: provider name
+            prompt: prompt string
+            context: context string
+            response: response string
+
+        Raises:
+            ValueError: If metric name is empty
+            Exception: If error occurs while calculating metric
+        """
+        try:
+            if not name:
+                raise ValueError("Metric name is required")
+
+            result = calculate_metric(project_id=self.project_id,
+                                        metric_name=name,
+                                        model=model,
+                                        org_domain="raga",
+                                        provider=provider,
+                                        user_id="1",  # self.user_details['id'],
+                                        prompt=prompt,
+                                        context=context,
+                                        response=response
+                                        )
+            result = result['data']
+
+            formatted_metric = {
+                "name": name,
+                "score": result.get('data')[0].get("score"),
+                "reason": result.get('data')[0].get("reason"),
+                "source": "user",
+                "cost": result.get('data')[0].get("cost"),
+                "latency": result.get('data')[0].get("latency"),
+                "metadata": result.get('data')[0].get("metric_config", {}),
+                "mappings": [],
+                "config": result.get('data')[0].get("metric_config", {})
+            }
+            self.user_metrics.append(formatted_metric)
+            
+            return result.get('data')[0].get("score"), result.get('data')[0].get("reason")
+
+        except ValueError as e:
+            logger.error(f"Validation Error: {e}")
+        except Exception as e:
+            logger.error(f"Error adding metric: {e}")
