@@ -266,16 +266,67 @@ class Tracer(AgenticTracing):
     @contextmanager
     def trace(self):
         """
-        Synchronous context manager for tracing.
-        Usage:
+        Context manager for tracing.
+
+        Example:
             with tracer.trace():
                 # Your code here
         """
-        self.start()
         try:
-            yield self
+            with self:
+                yield self
         finally:
-            self.stop()
+            pass  # The __exit__ method will be called automatically
+
+    def __enter__(self):
+        self.start()
+        
+        # Initialize LlamaIndex instrumentation if available
+        try:
+            from .llamaindex_instrumentation import init_llamaindex_instrumentation
+            self._llamaindex_handler = init_llamaindex_instrumentation(self)
+        except (ImportError, Exception) as e:
+            logger.debug(f"LlamaIndex instrumentation not initialized: {e}")
+            self._llamaindex_handler = None
+            
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        # Clean up LlamaIndex instrumentation if it was initialized
+        try:
+            if hasattr(self, '_llamaindex_handler') and self._llamaindex_handler:
+                from .llamaindex_instrumentation import stop_llamaindex_instrumentation
+                stop_llamaindex_instrumentation(self, self._llamaindex_handler)
+        except Exception as e:
+            logger.debug(f"Error cleaning up LlamaIndex instrumentation: {e}")
+            
+        self.stop()
+        return False
+        
+    async def __aenter__(self):
+        self.start()
+        
+        # Initialize LlamaIndex instrumentation if available
+        try:
+            from .llamaindex_instrumentation import init_llamaindex_instrumentation
+            self._llamaindex_handler = init_llamaindex_instrumentation(self)
+        except (ImportError, Exception) as e:
+            logger.debug(f"LlamaIndex instrumentation not initialized: {e}")
+            self._llamaindex_handler = None
+            
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        # Clean up LlamaIndex instrumentation if it was initialized
+        try:
+            if hasattr(self, '_llamaindex_handler') and self._llamaindex_handler:
+                from .llamaindex_instrumentation import stop_llamaindex_instrumentation
+                stop_llamaindex_instrumentation(self, self._llamaindex_handler)
+        except Exception as e:
+            logger.debug(f"Error cleaning up LlamaIndex instrumentation: {e}")
+            
+        self.stop()
+        return False
 
     def start(self):
         """Start the tracer."""

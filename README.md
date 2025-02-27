@@ -404,6 +404,50 @@ with tracer:
 ```
 ![Tracing](docs/img/last_main.png)
 
+### Universal Streaming Trace Support
+
+RagaAI Catalyst provides comprehensive support for capturing traces during streaming operations across all tracer types, not just specific frameworks:
+
+```python
+from ragaai_catalyst import (
+    RagaAICatalyst, 
+    Tracer, 
+    init_tracing, 
+    finalize_streaming_trace,
+    is_streaming_active
+)
+
+# Works with any tracer type
+tracer = Tracer(
+    project_name="your-project",
+    dataset_name="your-dataset"
+)
+
+# Start tracing before streaming begins
+tracer.start()
+
+try:
+    # Run your streaming operation
+    streaming_result = await your_streaming_function("Your query here")
+    
+    # Check if streaming is active and finalize if needed
+    if is_streaming_active():
+        finalize_streaming_trace()
+    else:
+        tracer.stop()
+        
+except Exception as e:
+    print(f"Error: {e}")
+    tracer.stop()
+```
+
+The system automatically detects streaming operations and keeps the trace context active until `finalize_streaming_trace()` is called. This ensures all events are captured in a single trace without modifying the underlying streaming implementation.
+
+For more details, see the [Universal Streaming Trace](docs/universal_streaming_trace.md) documentation.
+
+![Trace](docs/img/trace_comp.png)
+For more detailed information on Trace Management, please refer to the [Trace Management documentation](docs/trace_management.md).
+
 ### Prompt Management
 
 Manage and use prompts efficiently in your projects:

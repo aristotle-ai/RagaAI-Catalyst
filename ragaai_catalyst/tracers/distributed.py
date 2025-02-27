@@ -298,3 +298,53 @@ def current_span():
         raise ValueError("No active span found. Make sure you're calling this within a traced function.")
     
     return tracer.span(agent_name)
+
+
+def finalize_streaming_trace():
+    """
+    Finalize a streaming trace that's in progress.
+    
+    This should be called after all streaming operations have completed.
+    It handles the proper finalization of any trace that was marked for
+    delayed finalization due to streaming operations.
+    
+    Returns:
+        Status of the trace finalization, or None if no active tracer
+    """
+    tracer = get_current_tracer()
+    if tracer is None:
+        return "No active tracer found"
+    
+    # Check if the tracer has streaming functionality
+    if hasattr(tracer, "finalize_streaming_trace"):
+        return tracer.finalize_streaming_trace()
+    
+    # Delegate to specific implementations if needed
+    if hasattr(tracer, "tracer_type") and tracer.tracer_type == "llamaindex":
+        if hasattr(tracer, "llamaindex_instrumentor") and tracer.llamaindex_instrumentor:
+            return tracer.llamaindex_instrumentor.finalize_streaming_trace()
+    
+    return "Tracer does not support streaming trace finalization"
+
+
+def is_streaming_active():
+    """
+    Check if a streaming operation is active for the current tracer.
+    
+    Returns:
+        True if streaming is active, False otherwise or if no active tracer
+    """
+    tracer = get_current_tracer()
+    if tracer is None:
+        return False
+    
+    # Check base tracer
+    if hasattr(tracer, "is_streaming"):
+        return tracer.is_streaming
+    
+    # Check for LlamaIndex streaming
+    if hasattr(tracer, "tracer_type") and tracer.tracer_type == "llamaindex":
+        if hasattr(tracer, "llamaindex_instrumentor") and tracer.llamaindex_instrumentor:
+            return tracer.llamaindex_instrumentor.is_streaming_active()
+    
+    return False

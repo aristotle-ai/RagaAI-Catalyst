@@ -8,6 +8,7 @@ import sys
 import tempfile
 import threading
 import time
+import logging
 
 from ragaai_catalyst.tracers.agentic_tracing.upload.upload_local_metric import calculate_metric
 from ragaai_catalyst import RagaAICatalyst
@@ -23,8 +24,6 @@ from ragaai_catalyst.tracers.agentic_tracing.utils.zip_list_of_unique_files impo
 from ragaai_catalyst.tracers.agentic_tracing.utils.span_attributes import SpanAttributes
 from ragaai_catalyst.tracers.agentic_tracing.utils.system_monitor import SystemMonitor
 from ragaai_catalyst.tracers.agentic_tracing.upload.trace_uploader import submit_upload_task, get_task_status, ensure_uploader_running
-
-import logging
 
 logger = logging.getLogger(__name__)
 logging_level = (
@@ -92,6 +91,11 @@ class BaseTracer:
         self._upload_tasks = []
         self._is_uploading = False
         self._upload_completed_callback = None
+        
+        # For streaming operations
+        self.is_streaming = False
+        self.pending_finalization = False
+        self.streaming_lock = threading.RLock()
 
     def _get_system_info(self) -> SystemInfo:
         return self.system_monitor.get_system_info()
@@ -254,6 +258,11 @@ class BaseTracer:
 
     def stop(self):
         """Stop the trace and save to JSON file, then submit to background uploader"""
+        # Check if we're in a streaming context
+        if self.is_streaming and self.pending_finalization:
+            logger.info("Streaming operation in progress. Trace will be finalized when streaming completes.")
+            return None
+            
         if hasattr(self, "trace"):
             # Set end times
             self.trace.data[0]["end_time"] = datetime.now().astimezone().isoformat()
@@ -300,50 +309,51 @@ class BaseTracer:
             
             # Make sure uploader process is available
             ensure_uploader_running()
-
-            logger.debug("Base URL used for uploading: {}".format(self.base_url))
             
-            # Submit to background process for uploading
+            # Submit to background uploader
             self.upload_task_id = submit_upload_task(
                 filepath=filepath,
-                hash_id=hash_id,
-                zip_path=zip_path,
                 project_name=self.project_name,
-                project_id=self.project_id,
                 dataset_name=self.dataset_name,
-                user_details=self.user_details,
-                base_url=self.base_url
+                project_id=self.project_id,
+                base_url=self.base_url,
+                trace_name=self.trace_name,
+                zip_path=zip_path if list_of_unique_files else None
             )
             
-            # # For backward compatibility
-            # self._is_uploading = True
+            logger.info(f"Trace upload submitted (task ID: {self.upload_task_id})")
             
-            # # Start checking for completion if a callback is registered
-            # if self._upload_completed_callback:
-            #     # Start a thread to check status and call callback when complete
-            #     def check_status_and_callback():
-            #         status = self.get_upload_status()
-            #         if status.get("status") in ["completed", "failed"]:
-            #             self._is_uploading = False
-            #             # Execute callback
-            #             try:
-            #                 self._upload_completed_callback(self)
-            #             except Exception as e:
-            #                 logger.error(f"Error in upload completion callback: {e}")
-            #             return
-                    
-            #         # Check again after a delay
-            #         threading.Timer(5.0, check_status_and_callback).start()
-                
-            #     # Start checking
-            #     threading.Timer(5.0, check_status_and_callback).start()
+            # For backward compatibility - track uploading state
+            self._is_uploading = True
+            self._upload_tasks.append(self.upload_task_id)
             
-            logger.info(f"Submitted upload task with ID: {self.upload_task_id}")
-
-        # Cleanup local resources
-        self.components = []
-        self.file_tracker.reset()
+            # Start timer to check status and trigger callback
+            threading.Timer(5.0, lambda: self._check_status_and_callback()).start()
+            
+            return filepath
+        return None
         
+    def finalize_streaming_trace(self):
+        """
+        Finalize a streaming trace that was marked for delayed finalization.
+        This should be called after all streaming operations are complete.
+        
+        Returns:
+            The path to the finalized trace file, or None if no trace to finalize
+        """
+        with self.streaming_lock:
+            if not self.is_streaming or not self.pending_finalization:
+                logger.warning("No streaming trace to finalize")
+                return None
+                
+            # Reset streaming flags
+            self.is_streaming = False
+            self.pending_finalization = False
+            
+            # Continue with normal trace finalization
+            logger.info("Finalizing streaming trace")
+            return self.stop()
+
     def get_upload_status(self):
         """
         Get the status of the upload task.
