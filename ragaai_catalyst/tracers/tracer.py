@@ -695,7 +695,7 @@ class Tracer(AgenticTracing):
             }
             self.user_metrics.append(formatted_metric)
             
-            return result['data'][0]["score"], result['data'][0]["reason"]
+            return result.get('data')[0].get("score"), result.get('data')[0].get("reason")
 
         except ValueError as e:
             logger.error(f"Validation Error: {e}")
