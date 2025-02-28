@@ -6,9 +6,7 @@ def extract_llama_index_data(data):
     """
     Transform llama_index trace data into standardized format
     """
-    data = data[0]
-    with open("/Users/ritikagoel/workspace/llamaindex_sub_query_issue/RagaAI-Catalyst/llama_final_result1.json", 'w') as f:
-        json.dump(data, f, indent=4,default=str)        
+    data = data[0]     
     # Extract top-level metadata
     trace_data = {
         "project_id": data.get("project_id"),
@@ -79,9 +77,7 @@ def extract_llama_index_data(data):
                 return response
 
     # Process traces
-    if "traces" in data:
-        with open("/Users/ritikagoel/workspace/llamaindex_sub_query_issue/RagaAI-Catalyst/llama_final_result.json", 'w') as f:
-            json.dump(data, f, indent=2,default=str)        
+    if "traces" in data:    
         prompt = get_prompt(data["traces"])
         context = get_context(data["traces"])
         response = get_response(data["traces"])
