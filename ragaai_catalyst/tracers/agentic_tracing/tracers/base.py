@@ -8,6 +8,7 @@ import sys
 import tempfile
 import threading
 import time
+import copy
 
 from ragaai_catalyst.tracers.agentic_tracing.upload.upload_local_metric import calculate_metric
 from ragaai_catalyst import RagaAICatalyst
@@ -93,7 +94,40 @@ class BaseTracer:
         self._is_uploading = False
         self._upload_completed_callback = None
         
-        ensure_uploader_running()
+        self.ensure_uploader_process()
+
+    def ensure_uploader_process(self):
+        """
+        Make sure the uploader process is available and running.
+        This will attempt to start the process if it's not running and clean up stale PID files if needed.
+        
+        Returns:
+            int or None: PID of the uploader process if running, None otherwise
+        """
+        from ragaai_catalyst.tracers.agentic_tracing.upload.trace_uploader import ensure_uploader_running
+        
+        # Make sure uploader process is available - force restart if needed
+        pid = ensure_uploader_running()
+        if not pid:
+            logger.warning("Failed to confirm uploader process is running. Trying to force restart...")
+            # Try to clean up any stale PID files that might be preventing restart
+            pid_file = os.path.join(tempfile.gettempdir(), "trace_uploader.pid")
+            if os.path.exists(pid_file):
+                try:
+                    os.remove(pid_file)
+                    logger.info("Removed stale PID file")
+                except Exception as e:
+                    logger.error(f"Error removing stale PID file: {e}")
+            
+            # Try again after cleanup
+            pid = ensure_uploader_running()
+            if pid:
+                logger.info(f"Successfully restarted uploader process with PID {pid}")
+            else:
+                logger.error("Failed to restart uploader process after cleanup")
+
+        logger.debug(f"Base URL used for uploading: {self.base_url}")
+        return pid
 
     def _get_system_info(self) -> SystemInfo:
         return self.system_monitor.get_system_info()
@@ -300,27 +334,8 @@ class BaseTracer:
             logger.info("Traces saved successfully.")
             logger.debug(f"Trace saved to {filepath}")
             
-            # Make sure uploader process is available - force restart if needed
-            pid = ensure_uploader_running()
-            if not pid:
-                logger.warning("Failed to confirm uploader process is running. Trying to force restart...")
-                # Try to clean up any stale PID files that might be preventing restart
-                pid_file = os.path.join(tempfile.gettempdir(), "trace_uploader.pid")
-                if os.path.exists(pid_file):
-                    try:
-                        os.remove(pid_file)
-                        logger.info("Removed stale PID file")
-                    except Exception as e:
-                        logger.error(f"Error removing stale PID file: {e}")
-                
-                # Try again after cleanup
-                pid = ensure_uploader_running()
-                if pid:
-                    logger.info(f"Successfully restarted uploader process with PID {pid}")
-                else:
-                    logger.error("Failed to restart uploader process after cleanup")
-
-            logger.debug(f"Base URL used for uploading: {self.base_url}")
+            # Ensure uploader process is running before submitting
+            self.ensure_uploader_process()
             
             # Submit to background process for uploading
             self.upload_task_id = submit_upload_task(
@@ -334,49 +349,58 @@ class BaseTracer:
                 base_url=self.base_url
             )
             
-            # Verify upload task was submitted successfully
-            if not self.upload_task_id:
-                logger.error("Failed to submit upload task. Trying one more time...")
-                # Try again after a short delay
-                time.sleep(1)
-                self.upload_task_id = submit_upload_task(
-                    filepath=filepath,
-                    hash_id=hash_id,
-                    zip_path=zip_path,
-                    project_name=self.project_name,
-                    project_id=self.project_id,
-                    dataset_name=self.dataset_name,
-                    user_details=self.user_details,
-                    base_url=self.base_url
-                )
+            if self.upload_task_id:
+                logger.info(f"Trace submitted for upload with task ID: {self.upload_task_id}")
+                self._is_uploading = True
                 
-                if not self.upload_task_id:
-                    logger.error("Failed to submit upload task after retry. Upload may not occur.")
-                else:
-                    logger.info(f"Successfully submitted upload task on retry with ID: {self.upload_task_id}")
-            else:
-                logger.info(f"Submitted upload task with ID: {self.upload_task_id}")
-                
-                # Start checking for completion if a callback is registered
-                if self._upload_completed_callback:
-                    # Start a thread to check status and call callback when complete
-                    def check_status_and_callback():
-                        status = self.get_upload_status()
-                        if status.get("status") in ["completed", "failed"]:
-                            self._is_uploading = False
-                            # Execute callback
-                            try:
-                                self._upload_completed_callback(self)
-                            except Exception as e:
-                                logger.error(f"Error in upload completion callback: {e}")
-                            return
-                        
-                        # Check again after a delay
-                        threading.Timer(5.0, check_status_and_callback).start()
+                # If upload doesn't start within 5 seconds, try again
+                time.sleep(0.5)
+                status = self.get_upload_status()
+                if status is None or status.get("status") == "error":
+                    logger.warning("Upload task submission may have failed, trying again...")
                     
-                    # Start checking
+                    # Try submitting again
+                    self.upload_task_id = submit_upload_task(
+                        filepath=filepath,
+                        hash_id=hash_id,
+                        zip_path=zip_path,
+                        project_name=self.project_name,
+                        project_id=self.project_id,
+                        dataset_name=self.dataset_name,
+                        user_details=self.user_details,
+                        base_url=self.base_url
+                    )
+                    
+                    if self.upload_task_id:
+                        logger.info(f"Trace resubmitted for upload with task ID: {self.upload_task_id}")
+                        self._is_uploading = True
+                    else:
+                        logger.error("Failed to submit trace for upload after retry")
+                        self._is_uploading = False
+            else:
+                logger.error("Failed to submit trace for upload")
+                self._is_uploading = False
+            
+            # Start checking for completion if a callback is registered
+            if self._upload_completed_callback:
+                # Start a thread to check status and call callback when complete
+                def check_status_and_callback():
+                    status = self.get_upload_status()
+                    if status and status.get("status") in ["completed", "failed"]:
+                        self._is_uploading = False
+                        # Execute callback
+                        try:
+                            self._upload_completed_callback(self)
+                        except Exception as e:
+                            logger.error(f"Error in upload completion callback: {e}")
+                        return
+                    
+                    # Check again after a delay
                     threading.Timer(5.0, check_status_and_callback).start()
-
+                
+                # Start checking
+                threading.Timer(5.0, check_status_and_callback).start()
+            
         # Cleanup local resources
         self.components = []
         self.file_tracker.reset()
