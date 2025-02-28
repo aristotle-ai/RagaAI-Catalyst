@@ -22,6 +22,16 @@ from logging.handlers import RotatingFileHandler
 log_dir = os.path.join(tempfile.gettempdir(), "ragaai_logs")
 os.makedirs(log_dir, exist_ok=True)
 
+# Create stdout and stderr log files explicitly
+stdout_log_path = os.path.join(tempfile.gettempdir(), 'trace_uploader_stdout.log')
+stderr_log_path = os.path.join(tempfile.gettempdir(), 'trace_uploader_stderr.log')
+
+# Touch the files to ensure they exist
+with open(stdout_log_path, 'a'):
+    pass
+with open(stderr_log_path, 'a'):
+    pass
+
 # Define maximum file size (e.g., 5 MB) and backup count
 max_file_size = 5 * 1024 * 1024  # 5 MB
 backup_count = 1  # Number of backup files to keep
@@ -447,6 +457,9 @@ def ensure_uploader_running():
     """
     Ensure the uploader process is running.
     Starts it if not already running.
+    
+    Returns:
+        int or None: PID of the uploader process if successfully started, None otherwise
     """
     logger.info("Checking if uploader process is running...")
     
@@ -459,7 +472,17 @@ def ensure_uploader_running():
             with open(pid_file, "r") as f:
                 pid_str = f.read().strip()
                 logger.debug(f"Read PID from file: {pid_str}")
-                pid = int(pid_str)
+                if not pid_str or pid_str.startswith("thread_"):
+                    logger.warning(f"Invalid PID in file: {pid_str}")
+                    os.remove(pid_file)
+                    return _start_new_uploader_process(pid_file)
+                    
+                try:
+                    pid = int(pid_str)
+                except ValueError:
+                    logger.warning(f"Non-numeric PID in file: {pid_str}")
+                    os.remove(pid_file)
+                    return _start_new_uploader_process(pid_file)
             
             # Check if process is actually running
             # Use platform-specific process check
@@ -467,8 +490,24 @@ def ensure_uploader_running():
             try:
                 if os.name == 'posix':  # Unix/Linux/Mac
                     logger.debug(f"Checking process {pid} on Unix/Mac")
-                    os.kill(pid, 0)  # This raises an exception if process doesn't exist
-                    is_running = True
+                    try:
+                        os.kill(pid, 0)  # This raises an exception if process doesn't exist
+                        
+                        # Additional check: verify it's actually our process
+                        import psutil
+                        if psutil.pid_exists(pid):
+                            try:
+                                process = psutil.Process(pid)
+                                cmdline = process.cmdline()
+                                # Check if it's our trace uploader process
+                                if any("trace_uploader.py" in cmd for cmd in cmdline):
+                                    is_running = True
+                                else:
+                                    logger.warning(f"Process {pid} exists but is not trace_uploader.py: {cmdline}")
+                            except (psutil.NoSuchProcess, psutil.AccessDenied):
+                                logger.warning(f"Process {pid} exists but cannot access details")
+                    except ProcessLookupError:
+                        logger.warning(f"Process {pid} does not exist")
                 else:  # Windows
                     logger.debug(f"Checking process {pid} on Windows")
                     import ctypes
@@ -477,14 +516,39 @@ def ensure_uploader_running():
                     process = kernel32.OpenProcess(SYNCHRONIZE, False, pid)
                     if process:
                         kernel32.CloseHandle(process)
-                        is_running = True
+                        
+                        # Additional check: verify it's actually our process
+                        import psutil
+                        if psutil.pid_exists(pid):
+                            try:
+                                process = psutil.Process(pid)
+                                cmdline = process.cmdline()
+                                # Check if it's our trace uploader process
+                                if any("trace_uploader.py" in cmd for cmd in cmdline):
+                                    is_running = True
+                                else:
+                                    logger.warning(f"Process {pid} exists but is not trace_uploader.py: {cmdline}")
+                            except (psutil.NoSuchProcess, psutil.AccessDenied):
+                                logger.warning(f"Process {pid} exists but cannot access details")
             except (ImportError, AttributeError) as e:
                 logger.debug(f"Platform-specific check failed: {e}, falling back to cross-platform check")
                 # Fall back to cross-platform check
                 try:
                     import psutil
-                    is_running = psutil.pid_exists(pid)
-                    logger.debug(f"psutil check result: {is_running}")
+                    if psutil.pid_exists(pid):
+                        try:
+                            process = psutil.Process(pid)
+                            cmdline = process.cmdline()
+                            # Check if it's our trace uploader process
+                            if any("trace_uploader.py" in cmd for cmd in cmdline):
+                                is_running = True
+                                logger.debug(f"Process {pid} is confirmed to be trace_uploader.py")
+                            else:
+                                logger.warning(f"Process {pid} exists but is not trace_uploader.py: {cmdline}")
+                        except (psutil.NoSuchProcess, psutil.AccessDenied):
+                            logger.warning(f"Process {pid} exists but cannot access details")
+                    else:
+                        logger.warning(f"Process {pid} does not exist according to psutil")
                 except ImportError:
                     logger.debug("psutil not available, using basic process check")
                     # If psutil is not available, make a best guess
@@ -496,20 +560,52 @@ def ensure_uploader_running():
                         is_running = False
             
             if is_running:
-                logger.debug(f"Uploader process already running with PID {pid}")
+                logger.info(f"Uploader process already running with PID {pid}")
                 return pid
-        except (ProcessLookupError, ValueError, PermissionError):
+            else:
+                logger.warning(f"PID file exists but process {pid} is not running")
+                try:
+                    os.remove(pid_file)
+                except Exception as e:
+                    logger.error(f"Error removing stale PID file: {e}")
+        except Exception as e:
             # Process not running or other error, remove stale PID file
+            logger.error(f"Error checking PID file: {e}")
             try:
                 os.remove(pid_file)
-            except:
-                pass
+            except Exception as e2:
+                logger.error(f"Error removing stale PID file: {e2}")
     
+    return _start_new_uploader_process(pid_file)
+
+
+def _start_new_uploader_process(pid_file):
+    """
+    Helper function to start a new uploader process.
+    
+    Args:
+        pid_file: Path to the PID file
+        
+    Returns:
+        int or None: PID of the new process if successful, None otherwise
+    """
     # Start new process
     logger.info("Starting new uploader process")
     
     # Get the path to this script
     script_path = os.path.abspath(__file__)
+    
+    # Ensure log files exist
+    stdout_log_path = os.path.join(tempfile.gettempdir(), 'trace_uploader_stdout.log')
+    stderr_log_path = os.path.join(tempfile.gettempdir(), 'trace_uploader_stderr.log')
+    
+    # Touch the files to ensure they exist
+    with open(stdout_log_path, 'a'):
+        pass
+    with open(stderr_log_path, 'a'):
+        pass
+    
+    logger.info(f"Log files prepared: stdout={stdout_log_path}, stderr={stderr_log_path}")
     
     # Start detached process in a platform-specific way
     try:
@@ -523,6 +619,8 @@ def ensure_uploader_running():
                 pid = os.fork()
                 if pid > 0:
                     # Parent process, return
+                    # Wait a moment to ensure child process has started
+                    time.sleep(0.5)
                     return pid
                     
                 # Decouple from parent environment
@@ -540,8 +638,8 @@ def ensure_uploader_running():
                 sys.stdout.flush()
                 sys.stderr.flush()
                 si = open(os.devnull, 'r')
-                so = open(os.path.join(tempfile.gettempdir(), 'trace_uploader_stdout.log'), 'a+')
-                se = open(os.path.join(tempfile.gettempdir(), 'trace_uploader_stderr.log'), 'a+')
+                so = open(stdout_log_path, 'a+')
+                se = open(stderr_log_path, 'a+')
                 os.dup2(si.fileno(), sys.stdin.fileno())
                 os.dup2(so.fileno(), sys.stdout.fileno())
                 os.dup2(se.fileno(), sys.stderr.fileno())
@@ -549,15 +647,17 @@ def ensure_uploader_running():
                 # Execute the daemon process
                 os.execl(sys.executable, sys.executable, script_path, '--daemon')
                 
-            except (AttributeError, OSError):
+            except (AttributeError, OSError) as e:
+                logger.warning(f"Fork method failed: {e}, trying subprocess")
                 # Fork not available, try subprocess
-                process = subprocess.Popen(
-                    [sys.executable, script_path, "--daemon"],
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE,
-                    stdin=subprocess.PIPE,
-                    start_new_session=True  # Detach from parent
-                )
+                with open(stdout_log_path, 'a+') as so, open(stderr_log_path, 'a+') as se:
+                    process = subprocess.Popen(
+                        [sys.executable, script_path, "--daemon"],
+                        stdout=so,
+                        stderr=se,
+                        stdin=subprocess.PIPE,
+                        start_new_session=True  # Detach from parent
+                    )
                 pid = process.pid
                 
         else:  # Windows
@@ -571,22 +671,50 @@ def ensure_uploader_running():
             DETACHED_PROCESS = 0x00000008
             CREATE_NO_WINDOW = 0x08000000
             
-            process = subprocess.Popen(
-                [sys.executable, script_path, "--daemon"],
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                stdin=subprocess.PIPE,
-                startupinfo=startupinfo,
-                creationflags=DETACHED_PROCESS | CREATE_NO_WINDOW
-            )
+            with open(stdout_log_path, 'a+') as so, open(stderr_log_path, 'a+') as se:
+                process = subprocess.Popen(
+                    [sys.executable, script_path, "--daemon"],
+                    stdout=so,
+                    stderr=se,
+                    stdin=subprocess.PIPE,
+                    startupinfo=startupinfo,
+                    creationflags=DETACHED_PROCESS | CREATE_NO_WINDOW
+                )
             pid = process.pid
         
         # Write PID to file
         with open(pid_file, "w") as f:
             f.write(str(pid))
-            
-        logger.info(f"Started uploader process with PID {pid}")
-        return pid
+        
+        # Verify the process is actually running
+        time.sleep(1)  # Give it a moment to start
+        try:
+            import psutil
+            if psutil.pid_exists(pid):
+                logger.info(f"Started uploader process with PID {pid}")
+                
+                # Check for log file content to verify process started correctly
+                time.sleep(0.5)  # Give it a moment to write logs
+                log_content = ""
+                try:
+                    with open(stdout_log_path, 'r') as f:
+                        log_content = f.read()
+                except Exception as e:
+                    logger.warning(f"Could not read stdout log: {e}")
+                
+                if "Trace uploader daemon started" in log_content:
+                    logger.info("Confirmed uploader process started correctly based on log output")
+                else:
+                    logger.warning("Process started but no startup message found in logs")
+                
+                return pid
+            else:
+                logger.error(f"Process {pid} was started but is not running")
+                return None
+        except ImportError:
+            # If psutil is not available, just assume it's running
+            logger.info(f"Started uploader process with PID {pid} (unverified)")
+            return pid
         
     except Exception as e:
         logger.error(f"Error starting uploader process using primary method: {e}")
@@ -599,8 +727,8 @@ def ensure_uploader_running():
             def run_uploader():
                 """Run the uploader in a separate process"""
                 # Redirect output
-                sys.stdout = open(os.path.join(tempfile.gettempdir(), 'trace_uploader_stdout.log'), 'a+')
-                sys.stderr = open(os.path.join(tempfile.gettempdir(), 'trace_uploader_stderr.log'), 'a+')
+                sys.stdout = open(stdout_log_path, 'a+')
+                sys.stderr = open(stderr_log_path, 'a+')
                 
                 # Run daemon
                 run_daemon()
@@ -627,7 +755,16 @@ def ensure_uploader_running():
                 logger.warning("Using emergency fallback - running in current process thread")
                 import threading
                 
-                thread = threading.Thread(target=run_daemon, daemon=True)
+                def thread_run_daemon():
+                    try:
+                        # Set up explicit logging in the thread
+                        sys.stdout = open(stdout_log_path, 'a+')
+                        sys.stderr = open(stderr_log_path, 'a+')
+                        run_daemon()
+                    except Exception as e:
+                        logger.error(f"Error in thread daemon: {e}")
+                
+                thread = threading.Thread(target=thread_run_daemon, daemon=True)
                 thread.start()
                 
                 # No real PID since it's a thread, but we'll create a marker file
@@ -642,18 +779,54 @@ def ensure_uploader_running():
 
 def run_daemon():
     """Run the uploader as a daemon process"""
-    # Write PID to file
-    pid_file = os.path.join(tempfile.gettempdir(), "trace_uploader.pid")
-    with open(pid_file, "w") as f:
-        f.write(str(os.getpid()))
-        
     try:
-        uploader = TraceUploader()
-        uploader.start()
+        # Set up explicit logging to files
+        stdout_log_path = os.path.join(tempfile.gettempdir(), 'trace_uploader_stdout.log')
+        stderr_log_path = os.path.join(tempfile.gettempdir(), 'trace_uploader_stderr.log')
+        
+        # Ensure log files exist and are writable
+        with open(stdout_log_path, 'a') as stdout_file:
+            stdout_file.write(f"\n\n--- Trace Uploader Started at {datetime.now().isoformat()} ---\n")
+        with open(stderr_log_path, 'a') as stderr_file:
+            stderr_file.write(f"\n\n--- Trace Uploader Started at {datetime.now().isoformat()} ---\n")
+        
+        # Redirect stdout and stderr to log files
+        sys.stdout = open(stdout_log_path, 'a', buffering=1)  # Line buffering
+        sys.stderr = open(stderr_log_path, 'a', buffering=1)  # Line buffering
+        
+        # Write PID to file
+        pid_file = os.path.join(tempfile.gettempdir(), "trace_uploader.pid")
+        with open(pid_file, "w") as f:
+            f.write(str(os.getpid()))
+        
+        print(f"Trace uploader daemon started with PID {os.getpid()} at {datetime.now().isoformat()}")
+        print(f"Log files: stdout={stdout_log_path}, stderr={stderr_log_path}")
+        
+        try:
+            uploader = TraceUploader()
+            uploader.start()
+        except Exception as e:
+            print(f"Error in trace uploader: {e}")
+            import traceback
+            traceback.print_exc()
+    except Exception as e:
+        # If we can't even set up logging, try to write to a fallback error file
+        fallback_error_path = os.path.join(tempfile.gettempdir(), 'trace_uploader_critical_error.log')
+        try:
+            with open(fallback_error_path, 'a') as f:
+                f.write(f"\n\nCRITICAL ERROR at {datetime.now().isoformat()}: {str(e)}\n")
+                import traceback
+                traceback.print_exc(file=f)
+        except:
+            pass  # At this point we can't do much more
     finally:
         # Clean up PID file
+        pid_file = os.path.join(tempfile.gettempdir(), "trace_uploader.pid")
         if os.path.exists(pid_file):
-            os.remove(pid_file)
+            try:
+                os.remove(pid_file)
+            except Exception as e:
+                print(f"Error removing PID file: {e}")
 
 
 if __name__ == "__main__":

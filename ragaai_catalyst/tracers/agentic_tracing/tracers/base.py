@@ -300,10 +300,27 @@ class BaseTracer:
             logger.info("Traces saved successfully.")
             logger.debug(f"Trace saved to {filepath}")
             
-            # Make sure uploader process is available
-            ensure_uploader_running()
+            # Make sure uploader process is available - force restart if needed
+            pid = ensure_uploader_running()
+            if not pid:
+                logger.warning("Failed to confirm uploader process is running. Trying to force restart...")
+                # Try to clean up any stale PID files that might be preventing restart
+                pid_file = os.path.join(tempfile.gettempdir(), "trace_uploader.pid")
+                if os.path.exists(pid_file):
+                    try:
+                        os.remove(pid_file)
+                        logger.info("Removed stale PID file")
+                    except Exception as e:
+                        logger.error(f"Error removing stale PID file: {e}")
+                
+                # Try again after cleanup
+                pid = ensure_uploader_running()
+                if pid:
+                    logger.info(f"Successfully restarted uploader process with PID {pid}")
+                else:
+                    logger.error("Failed to restart uploader process after cleanup")
 
-            logger.debug("Base URL used for uploading: {}".format(self.base_url))
+            logger.debug(f"Base URL used for uploading: {self.base_url}")
             
             # Submit to background process for uploading
             self.upload_task_id = submit_upload_task(
@@ -317,35 +334,53 @@ class BaseTracer:
                 base_url=self.base_url
             )
             
-            # # For backward compatibility
-            # self._is_uploading = True
-            
-            # # Start checking for completion if a callback is registered
-            # if self._upload_completed_callback:
-            #     # Start a thread to check status and call callback when complete
-            #     def check_status_and_callback():
-            #         status = self.get_upload_status()
-            #         if status.get("status") in ["completed", "failed"]:
-            #             self._is_uploading = False
-            #             # Execute callback
-            #             try:
-            #                 self._upload_completed_callback(self)
-            #             except Exception as e:
-            #                 logger.error(f"Error in upload completion callback: {e}")
-            #             return
-                    
-            #         # Check again after a delay
-            #         threading.Timer(5.0, check_status_and_callback).start()
+            # Verify upload task was submitted successfully
+            if not self.upload_task_id:
+                logger.error("Failed to submit upload task. Trying one more time...")
+                # Try again after a short delay
+                time.sleep(1)
+                self.upload_task_id = submit_upload_task(
+                    filepath=filepath,
+                    hash_id=hash_id,
+                    zip_path=zip_path,
+                    project_name=self.project_name,
+                    project_id=self.project_id,
+                    dataset_name=self.dataset_name,
+                    user_details=self.user_details,
+                    base_url=self.base_url
+                )
                 
-            #     # Start checking
-            #     threading.Timer(5.0, check_status_and_callback).start()
-            
-            logger.info(f"Submitted upload task with ID: {self.upload_task_id}")
+                if not self.upload_task_id:
+                    logger.error("Failed to submit upload task after retry. Upload may not occur.")
+                else:
+                    logger.info(f"Successfully submitted upload task on retry with ID: {self.upload_task_id}")
+            else:
+                logger.info(f"Submitted upload task with ID: {self.upload_task_id}")
+                
+                # Start checking for completion if a callback is registered
+                if self._upload_completed_callback:
+                    # Start a thread to check status and call callback when complete
+                    def check_status_and_callback():
+                        status = self.get_upload_status()
+                        if status.get("status") in ["completed", "failed"]:
+                            self._is_uploading = False
+                            # Execute callback
+                            try:
+                                self._upload_completed_callback(self)
+                            except Exception as e:
+                                logger.error(f"Error in upload completion callback: {e}")
+                            return
+                        
+                        # Check again after a delay
+                        threading.Timer(5.0, check_status_and_callback).start()
+                    
+                    # Start checking
+                    threading.Timer(5.0, check_status_and_callback).start()
 
         # Cleanup local resources
         self.components = []
         self.file_tracker.reset()
-        
+    
     def get_upload_status(self):
         """
         Get the status of the upload task.
@@ -1297,3 +1332,110 @@ class BaseTracer:
             import traceback
             traceback.print_exc()
             return False
+
+    def check_uploader_status(self):
+        """
+        Check the status of the trace uploader process and logs.
+        This is a diagnostic function that can be called to help troubleshoot upload issues.
+        
+        Returns:
+            dict: Status information about the uploader process and logs
+        """
+        import tempfile
+        import os
+        import time
+        
+        result = {
+            "uploader_pid_file_exists": False,
+            "uploader_pid": None,
+            "uploader_process_running": False,
+            "stdout_log_exists": False,
+            "stderr_log_exists": False,
+            "stdout_log_size": 0,
+            "stderr_log_size": 0,
+            "stdout_log_last_lines": "",
+            "stderr_log_last_lines": "",
+            "upload_task_id": self.upload_task_id,
+            "upload_task_status": None,
+            "queue_dir_exists": False,
+            "queue_files": []
+        }
+        
+        # Check PID file
+        pid_file = os.path.join(tempfile.gettempdir(), "trace_uploader.pid")
+        result["uploader_pid_file_exists"] = os.path.exists(pid_file)
+        
+        if result["uploader_pid_file_exists"]:
+            try:
+                with open(pid_file, "r") as f:
+                    pid_str = f.read().strip()
+                    result["uploader_pid"] = pid_str
+                    
+                    # Check if it's a thread ID or a real PID
+                    if not pid_str.startswith("thread_"):
+                        try:
+                            pid = int(pid_str)
+                            # Check if process is running
+                            try:
+                                import psutil
+                                if psutil.pid_exists(pid):
+                                    result["uploader_process_running"] = True
+                                    try:
+                                        process = psutil.Process(pid)
+                                        result["uploader_process_cmdline"] = process.cmdline()
+                                    except:
+                                        pass
+                            except ImportError:
+                                # If psutil is not available, make a best guess
+                                try:
+                                    os.kill(pid, 0)  # This raises an exception if process doesn't exist
+                                    result["uploader_process_running"] = True
+                                except:
+                                    pass
+                        except ValueError:
+                            pass
+            except Exception as e:
+                result["pid_file_error"] = str(e)
+        
+        # Check log files
+        stdout_log_path = os.path.join(tempfile.gettempdir(), 'trace_uploader_stdout.log')
+        stderr_log_path = os.path.join(tempfile.gettempdir(), 'trace_uploader_stderr.log')
+        
+        result["stdout_log_exists"] = os.path.exists(stdout_log_path)
+        result["stderr_log_exists"] = os.path.exists(stderr_log_path)
+        
+        if result["stdout_log_exists"]:
+            try:
+                result["stdout_log_size"] = os.path.getsize(stdout_log_path)
+                if result["stdout_log_size"] > 0:
+                    with open(stdout_log_path, "r") as f:
+                        lines = f.readlines()
+                        result["stdout_log_last_lines"] = "".join(lines[-20:]) if lines else ""
+            except Exception as e:
+                result["stdout_log_error"] = str(e)
+        
+        if result["stderr_log_exists"]:
+            try:
+                result["stderr_log_size"] = os.path.getsize(stderr_log_path)
+                if result["stderr_log_size"] > 0:
+                    with open(stderr_log_path, "r") as f:
+                        lines = f.readlines()
+                        result["stderr_log_last_lines"] = "".join(lines[-20:]) if lines else ""
+            except Exception as e:
+                result["stderr_log_error"] = str(e)
+        
+        # Check upload task status
+        if self.upload_task_id:
+            result["upload_task_status"] = self.get_upload_status()
+        
+        # Check queue directory
+        queue_dir = os.path.join(tempfile.gettempdir(), "ragaai_tasks")
+        result["queue_dir_exists"] = os.path.exists(queue_dir)
+        
+        if result["queue_dir_exists"]:
+            try:
+                result["queue_files"] = [f for f in os.listdir(queue_dir) if f.endswith(".json")]
+            except Exception as e:
+                result["queue_dir_error"] = str(e)
+        
+        return result
