@@ -10,7 +10,6 @@ from litellm import model_cost
 
 from contextlib import contextmanager
 from concurrent.futures import ThreadPoolExecutor
-from ragaai_catalyst.tracers.langchain_callback import LangchainTracer
 from ragaai_catalyst.tracers.utils.convert_langchain_callbacks_output import convert_langchain_callbacks_output
 
 from ragaai_catalyst.tracers.utils.langchain_tracer_extraction_logic import langchain_tracer_extraction
@@ -29,7 +28,6 @@ from ragaai_catalyst.tracers.instrumentators import (
 )
 from ragaai_catalyst.tracers.utils import get_unique_key
 # from ragaai_catalyst.tracers.llamaindex_callback import LlamaIndexTracer
-from ragaai_catalyst.tracers.llamaindex_instrumentation import LlamaIndexInstrumentationTracer
 from ragaai_catalyst import RagaAICatalyst
 from ragaai_catalyst.tracers.agentic_tracing import AgenticTracing, TrackName
 from ragaai_catalyst.tracers.agentic_tracing.tracers.llm_tracer import LLMTracerMixin
@@ -284,9 +282,11 @@ class Tracer(AgenticTracing):
             #     self._instrumentor().instrument(tracer_provider=self._tracer_provider)
             #     self.is_instrumented = True
             # print(f"Tracer started for project: {self.project_name}")
+            from ragaai_catalyst.tracers.langchain_callback import LangchainTracer
             self.langchain_tracer = LangchainTracer()
             return self.langchain_tracer.start()
         elif self.tracer_type == "llamaindex":
+            from ragaai_catalyst.tracers.llamaindex_instrumentation import LlamaIndexInstrumentationTracer
             self.llamaindex_tracer = LlamaIndexInstrumentationTracer(self._pass_user_data())
             return self.llamaindex_tracer.start()
         else:
