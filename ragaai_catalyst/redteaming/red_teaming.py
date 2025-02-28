@@ -155,7 +155,8 @@ class RedTeaming:
                                 user_message=user_message,
                                 app_response=app_response
                             ),
-                            scenarios=[scenario]
+                            scenarios=[scenario],
+                            category=issue_description
                         )
                         evaluation = self.evaluator.evaluate_conversation(eval_input)
 
@@ -240,7 +241,8 @@ class RedTeaming:
                                 user_message=user_message,
                                 app_response=app_response
                             ),
-                            scenarios=[scenario]
+                            scenarios=[scenario],
+                            category=issue_description
                         )
                         evaluation = self.evaluator.evaluate_conversation(eval_input)
                         
