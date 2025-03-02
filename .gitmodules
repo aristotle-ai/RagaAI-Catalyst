@@ -1,0 +1,3 @@
+[submodule "openinference"]
+	path = ragaai_catalyst/openinference
+	url = https://github.com/aristotle-ai/trace_openinference.git
