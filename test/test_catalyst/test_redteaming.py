@@ -1,56 +1,67 @@
-import sys
-from unittest.mock import Mock
-
-import pandas as pd
 import pytest
+from pytest_mock import mocker
+from ragaai_catalyst.redteaming import RedTeaming
+import os
+import dotenv
+import pandas as pd
 
-sys.path.append("/Users/ragaai_user/Documents/RagaAI-Catalyst")
-from ragaai_catalyst import RedTeaming
+dotenv.load_dotenv("/Users/siddharthakosti/Downloads/catalyst_new_github_repo/RagaAI-Catalyst/.env", override=True)
 
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
-class TestRedTeaming:
+@pytest.fixture
+def red_teaming():
+    return RedTeaming(api_key=OPENAI_API_KEY)
 
-    @pytest.fixture
-    def red_teaming(self, monkeypatch):
-        """Fixture to create a RedTeaming instance with a mock API key."""
-        monkeypatch.setenv("GISKARD_API_KEY", "test_api_key")
-        return RedTeaming()
+def test_missing_api_key():
+    """Test behavior when API key is missing"""
+    with pytest.raises(ValueError, match="Api Key is required"):
+        RedTeaming(api_key="")
 
-    def test_invalid_scan_metric(self, red_teaming):
-        """Test that an invalid scan metric raises a ValueError."""
-        with pytest.raises(ValueError, match="Invalid scan metrics"):
-            red_teaming.run_scan(
-                model=Mock(),
-                evaluators=["invalid_metric"]
-            )
+def test_supported_detectors_loading(red_teaming):
+    """Test loading of supported detectors"""
+    assert isinstance(red_teaming.get_supported_detectors(), list), "Supported detectors should be a list"
 
-    def test_successful_scan(self, red_teaming, monkeypatch):
-        """Test a successful scan by mocking the giskard scan method."""
-        mock_report = Mock()
-        mock_report.to_dataframe.return_value = pd.DataFrame({"result": ["pass"]})
+def test_validate_detectors(red_teaming):
+    """Test validation of detectors"""
+    with pytest.raises(ValueError, match="Unsupported detectors"):
+        red_teaming.validate_detectors(["unsupported_detector"])
 
-        mock_giskard = Mock()
-        mock_giskard.scan.return_value = mock_report
-        monkeypatch.setattr("giskard.scan", mock_giskard.scan)
+def test_run_with_examples(red_teaming, mocker):
+    """Test running with examples"""
+    mock_response_model = mocker.Mock(return_value="mock response")
+    mocker.patch('ragaai_catalyst.redteaming.data_generator.scenario_generator.ScenarioGenerator.generate_scenarios', return_value=["scenario1", "scenario2"])
+    mocker.patch('ragaai_catalyst.redteaming.data_generator.test_case_generator.TestCaseGenerator.generate_test_cases', return_value={"inputs": [{"user_input": "test input"}]})
+    mocker.patch('ragaai_catalyst.redteaming.evaluator.Evaluator.evaluate_conversation', return_value={"eval_passed": True, "reason": "mock reason"})
 
-        df = red_teaming.run_scan(
-            model=Mock()
-        )
+    df, save_path = red_teaming.run(
+        description="Test app",
+        detectors=["stereotypes"],
+        response_model=mock_response_model,
+        examples=["example1", "example2"],
+        scenarios_per_detector=2
+    )
+    assert isinstance(df, pd.DataFrame), "Result should be a pandas DataFrame"
+    assert len(df) > 0, "DataFrame should not be empty"
 
-        assert isinstance(df, pd.DataFrame)
-        assert "result" in df.columns
-        assert df.iloc[0]["result"] == "pass"
+def test_run_without_examples(red_teaming, mocker):
+    """Test running without examples"""
+    mock_response_model = mocker.Mock(return_value="mock response")
+    mocker.patch('ragaai_catalyst.redteaming.data_generator.scenario_generator.ScenarioGenerator.generate_scenarios', return_value=["scenario1", "scenario2"])
+    mocker.patch('ragaai_catalyst.redteaming.data_generator.test_case_generator.TestCaseGenerator.generate_test_cases', return_value={"inputs": [{"user_input": "test input"}]})
+    mocker.patch('ragaai_catalyst.redteaming.evaluator.Evaluator.evaluate_conversation', return_value={"eval_passed": True, "reason": "mock reason"})
 
-    def test_scan(self):
-        def invoke(query: dict):
-            return f"Dummy answer for '{query['query']}'"
+    df, save_path = red_teaming.run(
+        description="Test app",
+        detectors=["stereotypes"],
+        response_model=mock_response_model,
+        scenarios_per_detector=2,
+        examples_per_scenario=2
+    )
+    assert isinstance(df, pd.DataFrame), "Result should be a pandas DataFrame"
+    assert len(df) > 0, "DataFrame should not be empty"
 
-        def model_predict(df: pd.DataFrame):
-            return [invoke({"query": question}) for question in df["question"]]
-
-        red_teaming = RedTeaming()
-        scan_df = red_teaming.run_scan(
-            model=model_predict
-        )
-
-        assert not scan_df.empty, "The scan DataFrame should not be empty."
+def test_upload_result_without_run(red_teaming):
+    """Test uploading results without running"""
+    with pytest.raises(Exception, match="Please execute the RedTeaming run() method before uploading the result"):
+        red_teaming.upload_result("project_name", "dataset_name")
