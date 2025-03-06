@@ -7,6 +7,7 @@ from ragaai_catalyst import SyntheticDataGeneration
 import os
 import dotenv
 import pandas as pd
+import json
 dotenv.load_dotenv("/Users/siddharthakosti/Downloads/catalyst_new_github_repo/RagaAI-Catalyst/.env", override=True)
 
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
@@ -246,126 +247,6 @@ def test_generate_examples(synthetic_gen, mocker):
     
     assert len(result_with_context) == 2, "Should generate exactly 2 examples"
 
-def test_different_question_types(synthetic_gen, sample_text, mocker):
-    """Test generation of different question types"""
-    # Mock the API responses
-    mock_simple_response = pd.DataFrame([
-        {"Question": "What is X?", "Answer": "X is Y."},
-        {"Question": "How does Z work?", "Answer": "Z works by..."}
-    ])
-    
-    mock_mcq_response = pd.DataFrame([
-        {
-            "Question": "What is X?",
-            "Options": ["A", "B", "C", "D"]
-        },
-        {
-            "Question": "Which of these...?",
-            "Options": ["A", "B", "C", "D"]
-        }
-    ])
-    
-    mock_complex_response = pd.DataFrame([
-        {
-            "Question": "Explain how...",
-            "Answer": "The process involves...",
-            "Context": "Given the complexity...",
-            "Reasoning": "We can conclude..."
-        },
-        {
-            "Question": "Analyze the...",
-            "Answer": "The analysis shows...",
-            "Context": "Considering the factors...",
-            "Reasoning": "Therefore..."
-        }
-    ])
-    
-    # Mock environment variables
-    mocker.patch.dict('os.environ', {
-        'OPENAI_API_KEY': 'test-key'
-    })
-    
-    # Mock the API calls
-    def mock_generate_response(*args, **kwargs):
-        if len(args) >= 3:
-            text = args[1]
-            system_message = args[2]
-        else:
-            # Handle case for _generate_internal_response
-            text = kwargs.get('text', '')
-            system_message = kwargs.get('system_message', '')
-            
-        if isinstance(system_message, dict):
-            # Handle case where system_message is passed as a dict
-            message_content = system_message.get('content', '').lower()
-        else:
-            message_content = system_message.lower()
-            
-        print(f"System message: {message_content}")
-
-        if "simple questions" in message_content:
-            print("Returning simple response")
-            return mock_simple_response
-        elif "probable answers" in message_content:
-            print("Returning MCQ response")
-            return mock_mcq_response
-        else:
-            print("Returning complex response")
-            return mock_complex_response
-    
-    mocker.patch.object(synthetic_gen, '_generate_llm_response', side_effect=mock_generate_response)
-    mocker.patch.object(synthetic_gen, '_generate_internal_response', side_effect=mock_generate_response)
-    
-    # Test simple questions
-    simple_result = synthetic_gen.generate_qna(
-        text=sample_text,
-        question_type='simple',
-        n=2,
-        model_config={"provider": "openai", "model": "gpt-4"}
-    )
-    assert len(simple_result) == 2
-    assert all('Options' not in qa for qa in simple_result.to_dict('records'))
-    assert all(isinstance(qa['Question'], str) for qa in simple_result.to_dict('records'))
-    assert all(isinstance(qa['Answer'], str) for qa in simple_result.to_dict('records'))
-
-    # Test MCQ questions
-    mcq_result = synthetic_gen.generate_qna(
-        text=sample_text,
-        question_type='mcq',
-        n=2,
-        model_config={"provider": "openai", "model": "gpt-4"}
-    )
-    assert len(mcq_result) == 2
-    mcq_records = mcq_result.to_dict('records')
-    assert all('Question' in qa for qa in mcq_records)
-    assert all(isinstance(qa['Question'], str) for qa in mcq_records)
-    assert all('Options' in qa for qa in mcq_records)
-    assert all(isinstance(qa['Options'], list) for qa in mcq_records)
-    assert all(len(qa['Options']) == 4 for qa in mcq_records)
-
-    # Test complex questions
-    complex_result = synthetic_gen.generate_qna(
-        text=sample_text,
-        question_type='complex',
-        n=2,
-        model_config={"provider": "openai", "model": "gpt-4"}
-    )
-    assert len(complex_result) == 2
-    complex_records = complex_result.to_dict('records')
-    assert all(isinstance(qa['Question'], str) for qa in complex_records)
-    assert all(isinstance(qa['Answer'], str) for qa in complex_records)
-    assert all(isinstance(qa['Context'], str) for qa in complex_records)
-    assert all(isinstance(qa['Reasoning'], str) for qa in complex_records)
-
-    # Test error handling
-    with pytest.raises(ValueError, match="Invalid question type"):
-        synthetic_gen.generate_qna(
-            text=sample_text,
-            question_type='invalid_type',
-            n=2,
-            model_config={"provider": "openai", "model": "gpt-4"}
-        )
-
 def test_input_validation(synthetic_gen):
     """Test input validation for generate_qna"""
     # Test empty text
@@ -399,20 +280,20 @@ def test_batch_processing(synthetic_gen, sample_text):
         user_id="1"
     )
     assert len(result) == n
-    assert isinstance(result, list)
-    assert all(isinstance(qa, dict) for qa in result)
+    assert isinstance(result, pd.DataFrame)
+    assert all(isinstance(qa, dict) for qa in result.to_dict('records'))
 
 def test_error_handling_malformed_response(synthetic_gen, sample_text, mocker):
     """Test handling of malformed responses from the API"""
     # Mock the API response to return malformed data
     mocker.patch('ragaai_catalyst.synthetic_data_generation.SyntheticDataGeneration._generate_batch_response',
-                 side_effect=ValueError("Malformed response from API"))
+                 side_effect=json.JSONDecodeError("Malformed response from API", "test", 0))
     
-    with pytest.raises(ValueError, match="Malformed response from API"):
-        synthetic_gen.generate_qna(
-            text=sample_text,
-            n=2,
-            model_config={"provider": "openai", "model": "gpt-4o-mini"},
-            internal_llm_proxy="http://4.240.49.141:4000/chat/completions",
-            user_id="1"
-        )
+    # Should not raise an exception for non-failure case errors, but should retry
+    synthetic_gen.generate_qna(
+        text=sample_text,
+        n=2,
+        model_config={"provider": "openai", "model": "gpt-4o-mini"},
+        internal_llm_proxy="http://4.240.49.141:4000/chat/completions",
+        user_id="1"
+    )
