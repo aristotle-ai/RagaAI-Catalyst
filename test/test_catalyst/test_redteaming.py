@@ -69,7 +69,24 @@ def test_invalid_detector_format(red_teaming):
             detectors=[123],  # Invalid format
             response_model=lambda x: "response"
         )
-        
+
+def test_custom_detector(red_teaming, mocker):
+    """Test running with a custom detector"""
+    mock_response_model = mocker.Mock(return_value="mock response")
+    mocker.patch('ragaai_catalyst.redteaming.data_generator.scenario_generator.ScenarioGenerator.generate_scenarios', return_value=["scenario1"])
+    mocker.patch('ragaai_catalyst.redteaming.evaluator.Evaluator.evaluate_conversation', return_value={"eval_passed": True, "reason": "mock reason"})
+
+    df, save_path = red_teaming.run(
+        description="Test app",
+        detectors=[{"custom": "Prevent AI from discussing killing anything"}],
+        response_model=mock_response_model,
+        examples=["example1"],
+        scenarios_per_detector=1
+    )
+    assert isinstance(df, pd.DataFrame), "Result should be a pandas DataFrame"
+    assert len(df) > 0, "DataFrame should not be empty"
+    
+
 def test_upload_result_without_run(red_teaming):
     """Test uploading results without running"""
     with pytest.raises(Exception, match="Please execute the RedTeaming run() method before uploading the result"):
