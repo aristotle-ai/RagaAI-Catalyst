@@ -61,6 +61,15 @@ def test_run_without_examples(red_teaming, mocker):
     assert isinstance(df, pd.DataFrame), "Result should be a pandas DataFrame"
     assert len(df) > 0, "DataFrame should not be empty"
 
+def test_invalid_detector_format(red_teaming):
+    """Test invalid detector format"""
+    with pytest.raises(ValueError, match='Detector must be a string or a dictionary with only key "custom" and a string as a value'):
+        red_teaming.run(
+            description="Test app",
+            detectors=[123],  # Invalid format
+            response_model=lambda x: "response"
+        )
+        
 def test_upload_result_without_run(red_teaming):
     """Test uploading results without running"""
     with pytest.raises(Exception, match="Please execute the RedTeaming run() method before uploading the result"):
