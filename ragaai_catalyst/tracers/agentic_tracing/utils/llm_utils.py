@@ -178,12 +178,13 @@ def extract_token_usage(result):
                 "completion_tokens": getattr(metadata, "output_tokens", 0),
                 "total_tokens": getattr(metadata, "total_tokens", 0)
             }
-        elif "input_tokens" in metadata:
-            return {
-                "prompt_tokens": metadata["input_tokens"],
-                "completion_tokens": metadata["output_tokens"],
-                "total_tokens": metadata["total_tokens"]
-            }
+        elif metadata:
+            if "input_tokens" in metadata:
+                return {
+                    "prompt_tokens": metadata["input_tokens"],
+                    "completion_tokens": metadata["output_tokens"],
+                    "total_tokens": metadata["total_tokens"]
+                }
 
 
     
