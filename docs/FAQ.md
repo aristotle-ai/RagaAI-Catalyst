@@ -1,9 +1,7 @@
 
-## FAQ for RagaAI Catalyst
+## FAQ
 
-This FAQ covers common questions to help you get started and make the most of the platform.
-
-**1. How do I install RagaAI Catalyst on my system?**
+**1. How do I install RagaAI Catalyst?**
 
 To install RagaAI Catalyst, open your terminal and run the following command:
 
@@ -55,9 +53,9 @@ print(usecases)
 ```
 Make sure to replace `QA_project` and `Chatbot` with your desired project name and use case.
 
-**4. How can I upload a dataset in CSV or JSONL format to a specific project?**
+**4. How can I upload a dataset to a project?**
 
-You can upload datasets by following these instructions:
+You can upload datasets by following these code snippets:
 
 ```python
 from ragaai_catalyst import Dataset
@@ -67,7 +65,7 @@ dataset_manager = Dataset(project_name="my_project")
 # For CSV format:
 dataset_manager.create_from_csv(
     csv_path="path/to/your.csv",
-    dataset_name="production_logs",
+    dataset_name="MyDataset",
     schema_mapping={
         'user_query': 'prompt',
         'bot_response': 'response'
@@ -77,37 +75,41 @@ dataset_manager.create_from_csv(
 # For JSONL format:
 dataset_manager.create_from_jsonl(
     jsonl_path="path/to/your.jsonl",
-    dataset_name="user_feedback",
-    schema_mapping={
-        'user_id': 'user_id',
-        'feedback': 'feedback'
+    dataset_name="MyDataset",
+     schema_mapping={
+        'user_query': 'prompt',
+        'bot_response': 'response'
     }
 )
-```
-Replace `path/to/file`  with the actual path to your `CSV/JSONL` file.
-The `schema_mapping` parameter ensures that your data correctly maps to the required schema format.
 
-**5. How do I create a new dataset using a dataframe?**
-
-If you have a pandas dataframe, you can create a dataset directly using the following code:
-
-```python
+# For pandas dataframe:
 dataset_manager.create_from_df(
     df=df,
     dataset_name='MyDataset',
     schema_mapping={'column1': 'schema_element1', 'column2': 'schema_element2'}
 )
 ```
-Replace `df` with your dataframe variable, and update `schema_mapping` to match your column names.
+The `schema_mapping` parameter ensures that your data correctly maps to the required schema format.
 
-**6. How do I add evaluation metrics like "Faithfulness" or "Hallucination"?**
+**5. How can I get column names for a dataset?**
+
+To get column names for a dataset, use the following code snippet:
+
+```python
+from ragaai_catalyst import Dataset
+dataset_manager = Dataset(project_name="my_project")
+columns = dataset_manager.get_dataset_columns(dataset_name="MyDataset")
+print(columns)
+```
+
+**6. How can I add evaluation metrics?**
 
 To add evaluation metrics, follow these steps:
 
 ```python
 from ragaai_catalyst import Evaluation
 
-# Create an evaluation experiment:
+# Create an evaluation:
 evaluation = Evaluation(
     project_name="QA_project",
     dataset_name="MyDataset",
@@ -132,9 +134,9 @@ evaluation.add_metrics(
 )
 ```
 
-**7. How can I retrieve the status and results of an evaluation experiment?**
+**7. How can I retrieve the result of an evaluation?**
 
-Retrieve experiment results using this code:
+Retrieve evaluation results using this code snippet:
 
 ```python
 from ragaai_catalyst import Evaluation
@@ -146,42 +148,23 @@ print(results)
 
 ![Evaluation](img/evaluation.gif)
 
-**8. How can I list available prompts in my project and retrieve a specific version of a prompt?**
+**8. How can I retrieve a specific version of a prompt?**
 
-To manage prompts, use the following commands:
+To retrieve a specific version of a prompt, use the following code snippet:
 
 ```python
 from ragaai_catalyst import PromptManager
 
 pm = PromptManager(project_name="chatbot_project")
-prompts = pm.list_prompts()
-print("Available prompts:", prompts)
 
 vulnerability_check = pm.get_prompt("safety_check", version="v2")
+
 print(f"Safety Check V2: {vulnerability_check.get_variables()}")
 ```
 Replace `safety_check` and `v2` with the desired prompt name and version.
 
 
-**9. How can I list fail conditions for guardrails and retrieve details about specific deployments?**
-
-Follow these steps:
-
-```python
-# Get list of Guardrails available
-guardrails_list = gdm.list_guardrails()
-print('guardrails_list:', guardrails_list)
-
-# Get list of fail condition for guardrails
-fail_conditions = gdm.list_fail_condition()
-print('fail_conditions:', fail_conditions)
-
-# Get specific deployment id with guardrails information
-deployment_id_detail = gdm.get_deployment(17)
-print('deployment_id_detail:', deployment_id_detail)
-```
-
-**10. How do I add guardrails to a deployment ID?**
+**9. How can I add guardrails to a deployment ID?**
 
 To add guardrails, use this code snippet:
 
@@ -210,25 +193,8 @@ guardrails = [{
                     "threshold": {"eq": 0},
                 }
       }
-    },
-    {
-      "displayName": "unusual_prompt_res",
-      "name": "Unusual Prompt",
-      "config":{
-          "mappings": [{
-                        "schemaName": "Prompt",
-                        "variableName": "Prompt"
-                    }],
-          "params":{
-              "isActive": {"value": False},
-              "isHighRisk": {"value": True},
-              "threshold": {"lt1": 1}
-          }
-      }
     }]
 gdm.add_guardrails(deployment_id, guardrails, guardrails_config)
 ```
 
-**11. Where can I find more documentation and resources for RagaAI Catalyst?**
-
-For more detailed documentation, tutorials, and examples, visit our official documentation at [https://docs.raga.ai](https://docs.raga.ai/ragaai-catalyst). 
+### You can check the documentation for more details at [https://docs.raga.ai](https://docs.raga.ai/ragaai-catalyst). 
