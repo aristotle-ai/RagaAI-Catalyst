@@ -32,28 +32,7 @@ catalyst = RagaAICatalyst(
 )
 ```
 
-**3. How can I list all existing projects and create a new project?**
-
-To manage projects, use the following code:
-
-```python
-# List projects
-projects = catalyst.list_projects()
-print(projects)
-
-# Create a new project
-project = catalyst.create_project(
-    project_name="QA_project",
-    usecase="Chatbot"
-)
-
-# You can also retrieve available use cases for projects:
-usecases = catalyst.project_use_cases()
-print(usecases)
-```
-Make sure to replace `QA_project` and `Chatbot` with your desired project name and use case.
-
-**4. How can I upload a dataset to a project?**
+**3. How can I upload a dataset to a project?**
 
 You can upload datasets by following these code snippets:
 
@@ -91,7 +70,7 @@ dataset_manager.create_from_df(
 ```
 The `schema_mapping` parameter ensures that your data correctly maps to the required schema format.
 
-**5. How can I get column names for a dataset?**
+**4. How can I get column names for a dataset?**
 
 To get column names for a dataset, use the following code snippet:
 
@@ -102,7 +81,7 @@ columns = dataset_manager.get_dataset_columns(dataset_name="MyDataset")
 print(columns)
 ```
 
-**6. How can I add evaluation metrics?**
+**5. How can I add evaluation metrics?**
 
 To add evaluation metrics, follow these steps:
 
@@ -134,7 +113,7 @@ evaluation.add_metrics(
 )
 ```
 
-**7. How can I retrieve the result of an evaluation?**
+**6. How can I retrieve the result of an evaluation?**
 
 Retrieve evaluation results using this code snippet:
 
@@ -146,9 +125,7 @@ results = eval.get_results()
 print(results)
 ```
 
-![Evaluation](img/evaluation.gif)
-
-**8. How can I retrieve a specific version of a prompt?**
+**7. How can I retrieve a specific version of a prompt?**
 
 To retrieve a specific version of a prompt, use the following code snippet:
 
@@ -164,7 +141,7 @@ print(f"Safety Check V2: {vulnerability_check.get_variables()}")
 Replace `safety_check` and `v2` with the desired prompt name and version.
 
 
-**9. How can I add guardrails to a deployment ID?**
+**8. How can I add guardrails to a deployment ID?**
 
 To add guardrails, use this code snippet:
 
