@@ -7,6 +7,11 @@ from tools import (
 )
 from agents import ItineraryAgent
 from config import initialize_tracing
+
+import sys
+import os
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../../..')))
+
 from ragaai_catalyst import trace_agent, current_span
 
 load_dotenv()
@@ -26,7 +31,8 @@ def travel_agent():
     print("Welcome to the Personalized Travel Planner!\n")
 
     # Get user input
-    user_input = input("Please describe your ideal vacation: ")
+    # user_input = input("Please describe your ideal vacation: ")
+    user_input = "karela, 10 days, 1000$, nature"
 
     # Extract preferences
     preferences_prompt = f"""
@@ -61,8 +67,9 @@ def travel_agent():
     print(f"\nWeather in {preferences['Destination']}: {weather}")
 
     # Get departure city
-    print("Please enter your departure city: ")
-    origin = input()
+    # print("Please enter your departure city: ")
+    # origin = input()
+    origin = "delhi"
     flight_price = flight_price_estimator_tool(origin, preferences["Destination"])
     print(flight_price)
 

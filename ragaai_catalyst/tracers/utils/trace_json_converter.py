@@ -296,6 +296,7 @@ def convert_json_format(input_trace, custom_model_cost):
     final_trace["metadata"]["total_tokens"] = final_trace["metadata"]["tokens"]["total_tokens"]
 
     return final_trace
+
     
 if __name__ == "__main__":
     if len(sys.argv) != 3:
