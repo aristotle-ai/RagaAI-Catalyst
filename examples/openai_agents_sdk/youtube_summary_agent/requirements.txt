@@ -1,0 +1,6 @@
+python-dotenv
+openai
+google_api_python_client
+youtube_transcript_api
+openai_agents
+ragaai_catalyst
