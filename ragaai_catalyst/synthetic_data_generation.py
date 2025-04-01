@@ -813,8 +813,9 @@ Irrelevant Examples: Any examples that are not relevant to the user's instructio
                 )
             except Exception as e:
                 continue
-            row_dict['generated_examples'] = examples
-            fin_df_list.append(row_dict)
+            for example in examples:
+                row_dict['generated_examples'] = example
+                fin_df_list.append(row_dict)
         fin_df = pd.DataFrame(fin_df_list)
         csv_file, csv_ext = os.path.splitext(csv_path)
         if not dst_csv_path:
@@ -824,6 +825,7 @@ Irrelevant Examples: Any examples that are not relevant to the user's instructio
             os.makedirs(dst_dir, exist_ok=True)
         fin_df.to_csv(dst_csv_path)
         logger.info(f'CSV with generated examples saved at {dst_csv_path}')
+        return dst_csv_path
 
 
 # Usage:
