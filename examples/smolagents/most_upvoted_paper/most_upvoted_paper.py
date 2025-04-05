@@ -14,7 +14,30 @@ import requests
 from bs4 import BeautifulSoup
 from huggingface_hub import HfApi
 from pypdf import PdfReader
-from smolagents import CodeAgent, HfApiModel, tool
+from smolagents import CodeAgent, LiteLLMModel, tool
+import os
+
+from dotenv import load_dotenv
+load_dotenv()
+
+import sys
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../../..')))
+
+from ragaai_catalyst import RagaAICatalyst, Tracer, init_tracing
+
+catalyst = RagaAICatalyst(
+    access_key=os.getenv('CATALYST_ACCESS_KEY'),
+    secret_key=os.getenv('CATALYST_SECRET_KEY'),
+    base_url=os.getenv('CATALYST_BASE_URL'),
+)
+
+tracer = Tracer(
+    project_name=os.getenv('PROJECT_NAME'),
+    dataset_name=os.getenv('DATASET_NAME'),
+    tracer_type="agentic/smolagents",
+)
+
+init_tracing(catalyst=catalyst, tracer=tracer)
 
 @tool
 def get_hugging_face_top_daily_paper() -> str:
@@ -124,8 +147,10 @@ def read_pdf_file(file_path: str = "paper.pdf") -> str:
 
 def main():
     """Initialize and run the paper summarization agent."""
-    model_id = "Qwen/Qwen2.5-Coder-32B-Instruct"
-    model = HfApiModel(model_id=model_id, token='HF_API_TOKEN')
+    model = LiteLLMModel(
+        model_id="openai/gpt-4o-mini",
+        api_key=os.environ.get("OPENAI_API_KEY"),
+    )
     
     agent = CodeAgent(
         tools=[
