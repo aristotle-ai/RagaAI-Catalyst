@@ -179,6 +179,12 @@ class Tracer(AgenticTracing):
         elif tracer_type == "llamaindex":
             self._upload_task = None
             self.llamaindex_tracer = None
+        elif tracer_type == "rag/llamaindex":
+            instrumentors = []
+            from openinference.instrumentation.llama_index import LlamaIndexInstrumentor
+            instrumentors += [(LlamaIndexInstrumentor, [])] 
+            self._setup_agentic_tracer(instrumentors)
+
         elif tracer_type == "rag/langchain":
             instrumentors = []
             from openinference.instrumentation.langchain import LangChainInstrumentor
@@ -472,6 +478,10 @@ class Tracer(AgenticTracing):
         elif self.tracer_type == "rag/langchain":
             super().start()
             return self
+        elif self.tracer_type == "rag/llamaindex":
+            super().start()
+            return self
+        
         else:
             super().start()
             return self
@@ -598,6 +608,8 @@ class Tracer(AgenticTracing):
                              ).upload_traces()
             return 
         elif self.tracer_type == "rag/langchain":
+            super().stop()
+        elif self.tracer_type == "rag/llamaindex":
             super().stop()
         else:
             super().stop()

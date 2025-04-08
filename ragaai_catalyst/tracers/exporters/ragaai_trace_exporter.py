@@ -11,6 +11,7 @@ from ragaai_catalyst.tracers.agentic_tracing.upload.trace_uploader import submit
 from ragaai_catalyst.tracers.agentic_tracing.utils.zip_list_of_unique_files import zip_list_of_unique_files
 from ragaai_catalyst.tracers.agentic_tracing.utils.trace_utils import format_interactions
 from ragaai_catalyst.tracers.utils.rag_trace_json_converter import rag_trace_json_converter
+from ragaai_catalyst.tracers.utils.convert_llama_instru_callback import convert_llamaindex_instrumentation_to_callback
 from ragaai_catalyst.tracers.utils.convert_langchain_callbacks_output import convert_langchain_callbacks_output
 from ragaai_catalyst.tracers.upload_traces import UploadTraces
 import datetime
@@ -52,6 +53,7 @@ class RAGATraceExporter(SpanExporter):
             if span_json["parent_id"] is None:
                 trace = self.trace_spans[trace_id]
                 try:
+                    logger.debug(f"Processing span for trace {trace_id}, parent_id: {span_json['parent_id']}")
                     self.process_complete_trace(trace, trace_id)
                 except Exception as e:
                     raise Exception(f"Error processing complete trace: {e}")
@@ -73,6 +75,8 @@ class RAGATraceExporter(SpanExporter):
         try:
             if self.tracer_type == "rag/langchain":
                 ragaai_trace_details, additional_metadata = self.prepare_rag_trace(spans, trace_id)
+            elif self.tracer_type == "rag/llamaindex":
+                ragaai_trace_details, additional_metadata = self.prepare_rag_trace(spans, trace_id)
             else:
                 ragaai_trace_details = self.prepare_trace(spans, trace_id)
         except Exception as e:
@@ -82,8 +86,12 @@ class RAGATraceExporter(SpanExporter):
         try:
             if self.tracer_type == "rag/langchain":
                 self.upload_rag_trace(ragaai_trace_details, additional_metadata, trace_id)
+            elif self.tracer_type == "rag/llamaindex":
+                self.upload_rag_trace(ragaai_trace_details, additional_metadata, trace_id)
+
             else:
-                self.upload_trace(ragaai_trace_details, trace_id)
+                None
+                # self.upload_trace(ragaai_trace_details, trace_id)
         except Exception as e:
             print(f"Error uploading trace {trace_id}: {e}")
 
@@ -142,13 +150,14 @@ class RAGATraceExporter(SpanExporter):
     
     def prepare_rag_trace(self, spans, trace_id):
         try:
-            with open(os.path.join(os.getcwd(), "langchain_traces_debug.json"), "w") as f:
+            with open(os.path.join(os.getcwd(), "llamaindex_traces_debug.json"), "w") as f:
                 json.dump(spans, f, cls=TracerJSONEncoder, indent=4)
-            
-            ragaai_trace, additional_metadata = rag_trace_json_converter(spans, self.custom_model_cost, trace_id, self.user_details)
+            ragaai_trace, additional_metadata = rag_trace_json_converter(spans, self.custom_model_cost, trace_id, self.user_details, self.tracer_type)            
             ragaai_trace["metadata"]["recorded_on"] = datetime.datetime.now().astimezone().isoformat()
-            ragaai_trace["metadata"]["log_source"] = "langchain_tracer"
-
+            if self.tracer_type == "rag/langchain": 
+                ragaai_trace["metadata"]["log_source"] = "langchain_tracer"
+            elif self.tracer_type == "rag/llamaindex": 
+                ragaai_trace["metadata"]["log_source"] = "llamaindex_tracer"
             if True:
                 converted_ragaai_trace = convert_langchain_callbacks_output(ragaai_trace, self.project_name, ragaai_trace["metadata"], ragaai_trace["pipeline"])
             else:
@@ -161,16 +170,36 @@ class RAGATraceExporter(SpanExporter):
             return None
     
     def upload_rag_trace(self, ragaai_trace, additional_metadata, trace_id):
-        try:
-            trace_file_path = os.path.join(os.getcwd(), "final_rag_traces.json")
-            with open(trace_file_path, 'w') as f:
-                json.dump(ragaai_trace, f, indent=2)
-            UploadTraces(json_file_path=trace_file_path,
-                         project_name=self.project_name,
-                         project_id=self.project_id,
-                         dataset_name=self.dataset_name,
-                         user_detail=self.user_details,
-                         base_url=self.base_url
-                         ).upload_traces(additional_metadata_keys=additional_metadata)
-        except Exception as e:
-            logger.error(f"Error uploading rag trace {trace_id}: {str(e)}")
+        if ragaai_trace and len(ragaai_trace) > 0:
+            for trace in ragaai_trace[0].get('traces', []):
+                attributes = trace.get('attributes', {})
+                
+                # Extract prompt
+                if 'traceloop.entity.input' in attributes:
+                    input_data = json.loads(attributes['traceloop.entity.input'])
+                    if 'kwargs' in input_data and 'input' in input_data['kwargs']:
+                        prompt = input_data['kwargs']['input']
+                
+                # Extract context
+                if 'traceloop.entity.input' in attributes:
+                    input_data = json.loads(attributes['traceloop.entity.input'])
+                    if 'kwargs' in input_data and 'context' in input_data['kwargs']:
+                        context = input_data['kwargs']['context']
+                
+                # Extract response
+                if 'gen_ai.completion.0.content' in attributes:
+                    response = attributes['gen_ai.completion.0.content']
+        if prompt is not None and response is not None and context is not None:
+            try:
+                trace_file_path = os.path.join(os.getcwd(), "final_rag_traces.json")
+                with open(trace_file_path, 'w') as f:
+                    json.dump(ragaai_trace, f, indent=2)
+                UploadTraces(json_file_path=trace_file_path,
+                            project_name=self.project_name,
+                            project_id=self.project_id,
+                            dataset_name=self.dataset_name,
+                            user_detail=self.user_details,
+                            base_url=self.base_url
+                            ).upload_traces(additional_metadata_keys=additional_metadata)
+            except Exception as e:
+                logger.error(f"Error uploading rag trace {trace_id}: {str(e)}")
