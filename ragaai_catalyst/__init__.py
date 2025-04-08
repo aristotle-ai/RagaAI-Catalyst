@@ -10,6 +10,7 @@ from .guardrails_manager import GuardrailsManager
 from .guard_executor import GuardExecutor
 from .tracers import Tracer, init_tracing, trace_agent, trace_llm, trace_tool, current_span, trace_custom
 from .redteaming import RedTeaming
+from .autopilot import get_tracer_type
 
 
 
@@ -30,5 +31,6 @@ __all__ = [
     "trace_tool",
     "current_span",
     "trace_custom"
-    "RedTeaming"
+    "RedTeaming",
+    "get_tracer_type",
 ]
