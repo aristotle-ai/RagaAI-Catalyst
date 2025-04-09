@@ -7,15 +7,6 @@ This test suite validates the functionality of RagaAI Catalyst using pytest. It 
 - Tests different LLM provider
 - Automated test reporting capabilities
 
-## Setup Conda Environment
-
-1. **Create the Conda environment** from the provided `environment.yml`:
-   ```bash
-   conda env create -f 'tests/environment.yml'
-
-2. **Activate the environment:**
-   ```bash
-   conda activate ragaai_pytest_env  # Replace `ragaai_pytest_env` with the environment name from the YAML file
 
 ## Setup the Keys 
 **Put these keys in the `.env` file**
