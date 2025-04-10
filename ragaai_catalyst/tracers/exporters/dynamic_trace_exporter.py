@@ -14,11 +14,12 @@ class DynamicTraceExporter(SpanExporter):
     certain properties to be updated dynamically during execution.
     """
     
-    def __init__(self, files_to_zip, project_name, project_id, dataset_name, user_details, base_url, custom_model_cost, timeout=120):
+    def __init__(self, tracer_type, files_to_zip, project_name, project_id, dataset_name, user_details, base_url, custom_model_cost, timeout=120):
         """
         Initialize the DynamicTraceExporter.
         
         Args:
+            tracer_type: Type of tracer
             files_to_zip: List of files to zip
             project_name: Project name
             project_id: Project ID
@@ -27,6 +28,7 @@ class DynamicTraceExporter(SpanExporter):
             base_url: Base URL for API
         """
         self._exporter = RAGATraceExporter(
+            tracer_type=tracer_type,
             files_to_zip=files_to_zip,
             project_name=project_name,
             project_id=project_id,

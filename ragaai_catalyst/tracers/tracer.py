@@ -179,6 +179,11 @@ class Tracer(AgenticTracing):
         elif tracer_type == "llamaindex":
             self._upload_task = None
             self.llamaindex_tracer = None
+        elif tracer_type == "rag/langchain":
+            instrumentors = []
+            from openinference.instrumentation.langchain import LangChainInstrumentor
+            instrumentors += [(LangChainInstrumentor, [])]
+            self._setup_agentic_tracer(instrumentors)
         # Handle agentic tracers
         elif tracer_type == "agentic" or tracer_type.startswith("agentic/"):
             
@@ -464,6 +469,9 @@ class Tracer(AgenticTracing):
         elif self.tracer_type == "llamaindex":
             self.llamaindex_tracer = LlamaIndexInstrumentationTracer(self._pass_user_data())
             return self.llamaindex_tracer.start()
+        elif self.tracer_type == "rag/langchain":
+            super().start()
+            return self
         else:
             super().start()
             return self
@@ -589,6 +597,8 @@ class Tracer(AgenticTracing):
                              base_url=self.base_url
                              ).upload_traces()
             return 
+        elif self.tracer_type == "rag/langchain":
+            super().stop()
         else:
             super().stop()
 
@@ -746,6 +756,7 @@ class Tracer(AgenticTracing):
 
         # Create a dynamic exporter that allows property updates
         self.dynamic_exporter = DynamicTraceExporter(
+            tracer_type=self.tracer_type,
             files_to_zip=list_of_unique_files,
             project_name=self.project_name,
             project_id=self.project_id,

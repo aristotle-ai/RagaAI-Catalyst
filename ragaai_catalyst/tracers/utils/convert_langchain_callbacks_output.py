@@ -3,7 +3,7 @@ import json
 def convert_langchain_callbacks_output(result, project_name="", metadata="", pipeline=""):
     initial_struc = [{
         "project_name": project_name,
-        "trace_id": "NA",
+        "trace_id": result["trace_id"],
         "session_id": "NA",
         "metadata" : metadata,
         "pipeline" : pipeline,
