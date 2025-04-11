@@ -8,7 +8,7 @@ import json
 import os
 from uuid import UUID
 from functools import wraps
-import asyncio
+import threading
 from langchain_core.documents import Document
 import logging
 import tempfile
@@ -54,6 +54,7 @@ class LangchainTracer(BaseCallbackHandler):
         self._current_query = None
         self.filepath = None
         self.model_names = {}  # Store model names by component instance
+        self._lock = threading.Lock()  # Use threading.Lock instead of asyncio.Lock
         logger.setLevel(log_level)
 
         if not os.path.exists(output_path):
@@ -98,14 +99,15 @@ class LangchainTracer(BaseCallbackHandler):
             },
         }
 
-    async def _periodic_save(self):
+    def _periodic_save(self):
         """Periodically save traces if save_interval is set"""
         while self._active and self.save_interval:
-            await asyncio.sleep(self.save_interval)
-            await self._async_save_trace()
+            import time
+            time.sleep(self.save_interval)
+            self._save_trace(force=True)
 
-    async def _async_save_trace(self, force: bool = False):
-        """Asynchronously save the current trace to a JSON file"""
+    def _save_trace(self, force: bool = False):
+        """Synchronously save the current trace to a JSON file"""
         if not self.current_trace["start_time"] and not force:
             return
 
@@ -136,7 +138,7 @@ class LangchainTracer(BaseCallbackHandler):
                 or len(trace_to_save["errors"]) > 0
                 or force
             ):
-                async with asyncio.Lock():
+                with self._lock:
                     with open(filepath, "w", encoding="utf-8") as f:
                         json.dump(trace_to_save, f, indent=2, default=str)
 
@@ -151,13 +153,6 @@ class LangchainTracer(BaseCallbackHandler):
         except Exception as e:
             logger.error(f"Error saving trace: {e}")
             self.on_error(e, context="save_trace")
-
-    def _save_trace(self, force: bool = False):
-        """Synchronous version of trace saving"""
-        if asyncio.get_event_loop().is_running():
-            asyncio.create_task(self._async_save_trace(force))
-        else:
-            asyncio.run(self._async_save_trace(force))
 
     def _create_safe_wrapper(self, original_func, component_name, method_name):
         """Create a safely wrapped version of an original function with enhanced error handling"""
@@ -459,8 +454,8 @@ class LangchainTracer(BaseCallbackHandler):
             self._monkey_patch()
 
             if self.save_interval:
-                loop = asyncio.get_event_loop()
-                self._save_task = loop.create_task(self._periodic_save())
+                self._save_task = threading.Thread(target=self._periodic_save)
+                self._save_task.start()
 
             logger.info("Tracing started")
         except Exception as e:
@@ -473,7 +468,7 @@ class LangchainTracer(BaseCallbackHandler):
         try:
             self._active = False
             if self._save_task:
-                self._save_task.cancel()
+                self._save_task.join()
             self._restore_original_methods()
             # self._save_trace(force=True)
 
@@ -504,49 +499,51 @@ class LangchainTracer(BaseCallbackHandler):
             if not self.current_trace["start_time"]:
                 self.current_trace["start_time"] = datetime.now()
 
-            self.current_trace["llm_calls"].append(
-                {
-                    "timestamp": datetime.now(),
-                    "event": "llm_start",
-                    "serialized": serialized,
-                    "prompts": prompts,
-                    "run_id": str(run_id),
-                    "additional_kwargs": kwargs,
-                }
-            )
+            llm_call = {
+                "timestamp": datetime.now(),
+                "event": "llm_start",
+                "serialized": serialized,
+                "prompts": prompts,
+                "run_id": str(run_id),
+                "additional_kwargs": kwargs,
+            }
+
+            # Use threading.Lock for thread-safe append
+            with self._lock:
+                self.current_trace["llm_calls"].append(llm_call)
         except Exception as e:
             self.on_error(e, context="llm_start")
 
     def on_llm_end(self, response: LLMResult, *, run_id: UUID, **kwargs: Any) -> None:
         try:
-            self.current_trace["llm_calls"].append(
-                {
-                    "timestamp": datetime.now(),
-                    "event": "llm_end",
-                    "response": response.dict(),
-                    "run_id": str(run_id),
-                    "additional_kwargs": kwargs,
-                }
-            )
+            # Use threading.Lock for thread-safe append
+            with self._lock:
+                self.current_trace["llm_calls"].append(
+                    {
+                        "timestamp": datetime.now(),
+                        "event": "llm_end",
+                        "response": response.dict(),
+                        "run_id": str(run_id),
+                        "additional_kwargs": kwargs,
+                    }
+                )
 
             # Calculate latency
             end_time = datetime.now()
             latency = (end_time - self.current_trace["start_time"]).total_seconds()
 
-            # Check if values are there in llm_output
+            # Rest of your existing token and model extraction logic...
             model = ""
             prompt_tokens = 0
             completion_tokens = 0
             total_tokens = 0
             
-            # Try to get model name from llm_output first
             if response and response.llm_output:
                 try:
                     model = response.llm_output.get("model_name")
                     if not model:
                         model = response.llm_output.get("model", "")
                 except Exception as e:
-                    # logger.debug(f"Error getting model name: {e}")
                     model = ""
 
             # Add model name
@@ -567,7 +564,6 @@ class LangchainTracer(BaseCallbackHandler):
                     try:
                         token_usage = response.llm_output.get("usage")
                     except Exception as e:
-                        # logger.debug(f"Error getting token usage: {e}")
                         token_usage = {}
                     
                 if token_usage !={}:
@@ -580,12 +576,11 @@ class LangchainTracer(BaseCallbackHandler):
 
                     total_tokens = prompt_tokens + completion_tokens
             except Exception as e:
-                # logger.debug(f"Error getting token usage: {e}")
                 prompt_tokens = 0
                 completion_tokens = 0
                 total_tokens = 0
 
-            # Check if values are there in 
+            # Your existing additional token usage checks...
             if prompt_tokens == 0 and completion_tokens == 0:
                 try:
                     usage_data = response.generations[0][0].message.usage_metadata
@@ -593,14 +588,12 @@ class LangchainTracer(BaseCallbackHandler):
                     completion_tokens = usage_data.get("output_tokens", 0)
                     total_tokens = prompt_tokens + completion_tokens
                 except Exception as e:
-                    # logger.debug(f"Error getting usage data: {e}")
                     try:
                         usage_data = response.generations[0][0].generation_info['usage_metadata']
                         prompt_tokens = usage_data.get("prompt_token_count", 0)
                         completion_tokens = usage_data.get("candidates_token_count", 0)
                         total_tokens = prompt_tokens + completion_tokens
                     except Exception as e:
-                        # logger.debug(f"Error getting token usage: {e}")
                         prompt_tokens = 0
                         completion_tokens = 0
                         total_tokens = 0
@@ -612,15 +605,15 @@ class LangchainTracer(BaseCallbackHandler):
             except Exception as e:
                 model=""
 
-            self.additional_metadata = {
-                'latency': latency,
-                'model_name': model,
-                'tokens': {
-                    'prompt': prompt_tokens,
-                    'completion': completion_tokens,
-                    'total': total_tokens
+                self.additional_metadata = {
+                    'latency': latency,
+                    'model_name': model,
+                    'tokens': {
+                        'prompt': prompt_tokens,
+                        'completion': completion_tokens,
+                        'total': total_tokens
+                    }
                 }
-            }
 
         except Exception as e:
             self.on_error(e, context="llm_end")

@@ -537,6 +537,21 @@ class Tracer(AgenticTracing):
                 model_cost_latency_metadata["recorded_on"] = datetime.datetime.now().astimezone().isoformat()
                 combined_metadata.update(model_cost_latency_metadata)
 
+                filepath_1 = os.path.join(os.getcwd(), "langchain_callback_traces_0.json")
+                filepath_num = "/Users/siddharthakosti/Downloads/catalyst_new_github_repo/RagaAI-Catalyst/filepath_num.json"
+                with open(filepath_num, 'r') as f:
+                    data1 = json.load(f)
+                    num1 = data1['num1']
+                    num2 = data1['num2']
+                if os.path.exists(filepath_1):
+                    filepath_1 = os.path.join(os.getcwd(), f"langchain_callback_traces_{num1}.json")
+                    num1 += 1
+                    with open(filepath_num, 'w') as f:
+                        json.dump({'num1': num1, 'num2': num2}, f)
+
+                with open(filepath_1, 'w') as f:
+                    json.dump(data, f, default=str, indent=2)
+            
             langchain_traces = langchain_tracer_extraction(data, self.user_context)
             final_result = convert_langchain_callbacks_output(langchain_traces)
             
@@ -548,7 +563,18 @@ class Tracer(AgenticTracing):
                 final_result[0]['metadata'] = combined_metadata
                 final_result[0]['pipeline'] = user_detail.get('trace_user_detail', {}).get('pipeline')
 
-                filepath_3 = os.path.join(os.getcwd(), "final_result.json")
+                filepath_3 = os.path.join(os.getcwd(), "final_result_0.json")
+                filepath_num = "/Users/siddharthakosti/Downloads/catalyst_new_github_repo/RagaAI-Catalyst/filepath_num.json"
+                with open(filepath_num, 'r') as f:
+                    data2 = json.load(f)
+                    num1 = data2['num1']
+                    num2 = data2['num2']
+                if os.path.exists(filepath_3):
+                    filepath_3 = os.path.join(os.getcwd(), f"final_result_{num2}.json")
+                    num2 += 1
+                    with open(filepath_num, 'w') as f:
+                        json.dump({'num1': num1, 'num2': num2}, f)
+
                 with open(filepath_3, 'w') as f:
                     json.dump(final_result, f, indent=2)
                 

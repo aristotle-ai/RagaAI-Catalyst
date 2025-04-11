@@ -2,6 +2,8 @@ import requests
 import json
 import os
 from datetime import datetime
+import concurrent.futures
+from typing import Dict, Any
 
 
 class UploadTraces:
@@ -19,6 +21,7 @@ class UploadTraces:
         self.user_detail = user_detail
         self.base_url = base_url
         self.timeout = 10
+        self._executor = concurrent.futures.ThreadPoolExecutor(max_workers=10, thread_name_prefix="trace_uploader")
 
     def _create_dataset_schema_with_trace(self, additional_metadata_keys=None, additional_pipeline_keys=None):
         SCHEMA_MAPPING_NEW = {
@@ -105,7 +108,7 @@ class UploadTraces:
 
         if "blob.core.windows.net" in presignedUrl:  # Azure
             headers["x-ms-blob-type"] = "BlockBlob"
-        print(f"Uploading traces...")
+        # print(f"Uploading traces...")
         with open(filename) as f:
             payload = f.read().replace("\n", "").replace("\r", "").encode()
             
@@ -128,6 +131,7 @@ class UploadTraces:
                 "datasetName": self.dataset_name,
                 "presignedUrl": presignedUrl,
             })
+        print(f"Inserting traces...")
         response = requests.request("POST", 
                                     f"{self.base_url}/v1/llm/insert/trace", 
                                     headers=headers, 
@@ -136,12 +140,30 @@ class UploadTraces:
 
     def upload_traces(self, additional_metadata_keys=None, additional_pipeline_keys=None):
         try:
-            self._create_dataset_schema_with_trace(additional_metadata_keys, additional_pipeline_keys)
-            presignedUrl = self._get_presigned_url()
-            if presignedUrl is None:
-                return
-            self._put_presigned_url(presignedUrl, self.json_file_path)
-            self._insert_traces(presignedUrl)
-            print("Traces uploaded")
+            schema_status = self._create_dataset_schema_with_trace(additional_metadata_keys, additional_pipeline_keys)
+            if schema_status != 200:
+                return {"status": "failed", "error": f"Failed to create schema. Status code: {schema_status}"}
+
+            presigned_url = self._get_presigned_url()
+            if not presigned_url:
+                return {"status": "failed", "error": "Failed to get presigned URL"}
+            future = self._executor.submit(self._put_presigned_url, presigned_url, self.json_file_path)
+            try:
+                status_code = future.result(timeout=self.timeout)
+                if status_code[1] in [200, 201]:
+                    self._insert_traces(presigned_url)
+                    return {"status": "success", "message": "Upload completed successfully"}
+                else:
+                    return {"status": "failed", "error": f"Upload failed with status code: {status_code}"}
+            except concurrent.futures.TimeoutError:
+                return {"status": "failed", "error": "Upload timed out"}
+            except Exception as e:
+                return {"status": "failed", "error": f"Upload failed with error: {str(e)}"}
         except Exception as e:
             print(f"Error while uploading agentic traces: {e}")
+            import time; time.sleep(2)
+
+    def cleanup(self):
+        """Cleanup resources when done"""
+        if hasattr(self, '_executor'):
+            self._executor.shutdown(wait=True)
