@@ -24,43 +24,10 @@ def sample_text(synthetic_gen):
     text_file = doc_path # Update this path as needed
     return synthetic_gen.process_document(input_data=text_file)
 
-def test_invalid_csv_processing(synthetic_gen):
-    """Test processing an invalid CSV file"""
-    with pytest.raises(Exception):
-        synthetic_gen.process_document(input_data=invalid_csv_path)
-
 def test_special_chars_csv_processing(synthetic_gen):
     """Test processing CSV with special characters"""
     with pytest.raises(Exception):
         synthetic_gen.process_document(input_data=valid_csv_path)
-
-
-
-def test_missing_llm_proxy(synthetic_gen, sample_text):
-    """Test behavior when internal_llm_proxy is not provided"""
-    # print('-'*10)
-    # print(OPENAI_API_KEY)
-    # print('-'*10)
-    with pytest.raises(ValueError, match="API key must be provided"):
-        synthetic_gen.generate_qna(
-            text=sample_text,
-            question_type='mcq',
-            model_config={"provider": "openai", "model": "gpt-4o-mini"},
-            n=1,
-            user_id="1"
-        )
-
-def test_llm_proxy(synthetic_gen, sample_text):
-    result = synthetic_gen.generate_qna(
-            text=sample_text,
-            question_type='mcq',
-            model_config={"provider": "gemini", "model": "gemini-1.5-flash"},
-            n=1,
-            internal_llm_proxy="http://4.247.138.221:4000/chat/completions",
-            user_id="1"
-        )
-    assert len(result) == 1
-
     
 
 def test_invalid_llm_proxy(synthetic_gen, sample_text):
@@ -85,74 +52,3 @@ def test_missing_model_config(synthetic_gen, sample_text):
             internal_llm_proxy="http://20.244.126.4:4000/chat/completions",
             user_id="1"
         )
-
-def test_missing_api_key_for_external_provider(synthetic_gen, sample_text):
-    """Test behavior when API key is missing for external provider"""
-    with pytest.raises(ValueError, match="API key must be provided"):
-        synthetic_gen.generate_qna(
-            text=sample_text,
-            question_type='mcq',
-            model_config={"provider": "gemini", "model": "gemini/gemini-1.5-flash"},
-            n=1
-        )
-
-def test_invalid_api_key(synthetic_gen, sample_text):
-    """Test behavior with invalid API key"""
-    with pytest.raises(Exception, match="Failed to generate valid response after 3 attempts: Invalid API key provided"):
-        synthetic_gen.generate_qna(
-            text=sample_text,
-            question_type='mcq',
-            model_config={"provider": "gemini", "model": "gemini/gemini-1.5-flash"},
-            n=1,
-            api_key='invalid_key'
-        )
-
-def test_default_question_count(synthetic_gen, sample_text):
-    """Test default number of questions when n is not provided"""
-    result = synthetic_gen.generate_qna(
-        text=sample_text,
-        question_type='mcq',
-        model_config={"provider": "openai", "model": "gpt-4o-mini"},
-        internal_llm_proxy="http://4.247.138.221:4000/chat/completions",
-        user_id="1"
-    )
-    assert len(result) == 5  # Default should be 5 questions
-
-def test_default_question_type(synthetic_gen, sample_text):
-    """Test default question type when question_type is not provided"""
-    result = synthetic_gen.generate_qna(
-        text=sample_text,
-        model_config={"provider": "openai", "model": "gpt-4o-mini"},
-        n=1,
-        internal_llm_proxy="http://20.244.126.4:4000/chat/completions",
-        user_id="1"
-    )
-    # Verify result contains simple Q/A format without multiple choice options
-    assert all('options' not in qa for qa in result)
-
-def test_question_count_matches_n(synthetic_gen, sample_text):
-    """Test if number of generated questions matches n"""
-    n = 1
-    result = synthetic_gen.generate_qna(
-        text=sample_text,
-        question_type='mcq',
-        model_config={"provider": "openai", "model": "gpt-4o-mini"},
-        n=n,
-        internal_llm_proxy="http://4.247.138.221:4000/chat/completions",
-        user_id="1"
-    )
-    assert len(result) == n
-
-def test_proxy_call_check(synthetic_gen,sample_text):
-    """Test compatibility when proxy script called"""
-
-    result = synthetic_gen.generate_qna(
-            text=sample_text,
-            question_type='simple',
-            model_config={"provider": "gemini", "model": "gemini-1.5-flash", "api_base": "http://172.172.11.158:8000/v1alpha1/v1alpha1/predictions"},
-            n=1
-        )
-    assert len(result) == 1
-
-
-

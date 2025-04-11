@@ -27,8 +27,8 @@ catalyst = RagaAICatalyst(
     base_url=os.getenv('RAGAAI_CATALYST_BASE_URL')
 )
 tracer = Tracer(
-    project_name=os.environ['RAGAAI_PROJECT_NAME'],
-    dataset_name=os.environ['RAGAAI_DATASET_NAME'],
+    project_name='prompt_metric_dataset',#os.getenv("RAGAAI_PROJECT_NAME"),
+    dataset_name='pytest_dataset',#os.getenv("RAGAAI_DATASET_NAME"),
     tracer_type="agentic/langchain",
 )
 

@@ -18,20 +18,21 @@ from dotenv import load_dotenv
 load_dotenv()
 
 catalyst = RagaAICatalyst(
-    access_key=os.getenv('CATALYST_ACCESS_KEY'), 
-    secret_key=os.getenv('CATALYST_SECRET_KEY'), 
-    base_url=os.getenv('CATALYST_BASE_URL')
+    access_key=os.getenv('RAGAAI_CATALYST_ACCESS_KEY'), 
+    secret_key=os.getenv('RAGAAI_CATALYST_SECRET_KEY'), 
+    base_url=os.getenv('RAGAAI_CATALYST_BASE_URL')
 )
 tracer = Tracer(
-    project_name=os.environ['PROJECT_NAME'],
-    dataset_name=os.environ['DATASET_NAME'],
+    project_name=os.environ['RAGAAI_PROJECT_NAME'],
+    dataset_name=os.environ['RAGAAI_DATASET_NAME'],
     tracer_type="agentic/langchain",
 )
 
 init_tracing(catalyst=catalyst, tracer=tracer)
 
-MEDICAL_TEXTS_DIR = "data/medical_texts"
-SYMPTOM_MAP_CSV = "data/symptom_disease_map.csv"
+DIR_PATH = os.path.dirname(os.path.abspath(__file__))
+MEDICAL_TEXTS_DIR = os.path.join(DIR_PATH, "data", "medical_texts")
+SYMPTOM_MAP_CSV = os.path.join(DIR_PATH, "data", "symptom_disease_map.csv")
 EMBEDDINGS_MODEL = "all-MiniLM-L6-v2"
 MODEL_TYPE = "openai"
 

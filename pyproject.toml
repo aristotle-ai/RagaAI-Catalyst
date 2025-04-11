@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "ragaai_catalyst"
 description = "RAGA AI CATALYST"
 readme = "README.md"
-requires-python = ">=3.10,<3.13"
+requires-python = ">=3.10,<=3.13.2"
 # license = {file = "LICENSE"}
 version = "2.1.6.4"
 authors = [
@@ -61,7 +61,14 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["pytest", "pytest-cov", "black", "isort", "mypy", "flake8"]
+dev = [
+    "pytest>=8.3.5",
+    "pytest-cov", 
+    "black", 
+    "isort", 
+    "mypy", 
+    "flake8"
+]
 
 [tool.setuptools]
 packages = ["ragaai_catalyst"]

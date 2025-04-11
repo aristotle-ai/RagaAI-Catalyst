@@ -15,8 +15,8 @@ def initialize_tracing():
     )
 
     tracer = Tracer(
-        project_name=os.getenv("RAGAAI_PROJECT_NAME"),
-        dataset_name=os.getenv("RAGAAI_DATASET_NAME"),
+        project_name='prompt_metric_dataset',#os.getenv("RAGAAI_PROJECT_NAME"),
+        dataset_name='pytest_dataset',#os.getenv("RAGAAI_DATASET_NAME"),
         tracer_type="Agentic",
     )
 

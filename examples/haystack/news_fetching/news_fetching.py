@@ -21,14 +21,14 @@ load_dotenv()
 
 # Setup Raga AI Catalyst for enhanced monitoring and tracing
 catalyst = RagaAICatalyst(
-    access_key=os.getenv('CATALYST_ACCESS_KEY'),
-    secret_key=os.getenv('CATALYST_SECRET_KEY'),
-    base_url=os.getenv('CATALYST_BASE_URL')
+    access_key=os.getenv('RAGAAI_CATALYST_ACCESS_KEY'),
+    secret_key=os.getenv('RAGAAI_CATALYST_SECRET_KEY'),
+    base_url=os.getenv('RAGAAI_CATALYST_BASE_URL')
 )
 
 tracer = Tracer(
-    project_name=os.getenv('PROJECT_NAME'),
-    dataset_name=os.getenv('DATASET_NAME'),
+    project_name=os.getenv('RAGAAI_PROJECT_NAME'),
+    dataset_name=os.getenv('RAGAAI_DATASET_NAME'),
     tracer_type="agentic/haystack",
 )
 
