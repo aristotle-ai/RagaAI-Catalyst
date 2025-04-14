@@ -9,12 +9,14 @@ class UploadTraces:
                  json_file_path,
                  project_name,
                  project_id,
+                 external_id,
                  dataset_name,
                  user_detail,
                  base_url):
         self.json_file_path = json_file_path
         self.project_name = project_name
         self.project_id = project_id
+        self.external_id = external_id
         self.dataset_name = dataset_name
         self.user_detail = user_detail
         self.base_url = base_url
@@ -23,6 +25,7 @@ class UploadTraces:
     def _create_dataset_schema_with_trace(self, additional_metadata_keys=None, additional_pipeline_keys=None):
         SCHEMA_MAPPING_NEW = {
             "trace_id": {"columnType": "traceId"},
+            "external_id": {"columnType": "externalId"},
             "trace_uri": {"columnType": "traceUri"},
             "prompt": {"columnType": "prompt"},
             "response":{"columnType": "response"},

@@ -41,6 +41,7 @@ class Tracer(AgenticTracing):
         self,
         project_name,
         dataset_name,
+        external_id=None,
         trace_name=None,
         tracer_type=None,
         pipeline=None,
@@ -126,6 +127,7 @@ class Tracer(AgenticTracing):
 
         self.project_name = project_name
         self.dataset_name = dataset_name
+        self.external_id = external_id
         self.tracer_type = tracer_type
         self.metadata = self._improve_metadata(metadata, tracer_type)
         # self.metadata["total_cost"] = 0.0
@@ -367,6 +369,16 @@ class Tracer(AgenticTracing):
             "output_cost_per_token": float(cost_config["output_cost_per_million_token"]) /1000000
         }
 
+    def set_external_id(self, external_id):
+        """
+        Set the external ID for the tracer. This ID is used to identify the trace in external systems.
+
+        Args:
+            external_id (str): The external ID to set.
+        """
+        self.external_id = external_id
+
+
     def set_dataset_name(self, dataset_name):
         """
         Reinitialize the Tracer with a new dataset name while keeping all other parameters the same.
@@ -544,6 +556,7 @@ class Tracer(AgenticTracing):
             if final_result and isinstance(final_result, list) and len(final_result) > 0:
                 final_result[0]['project_name'] = user_detail.get('project_name', '')
                 final_result[0]['trace_id'] = str(uuid.uuid4())
+                final_result[0]['external_id'] = self.external_id
                 final_result[0]['session_id'] = None
                 final_result[0]['metadata'] = combined_metadata
                 final_result[0]['pipeline'] = user_detail.get('trace_user_detail', {}).get('pipeline')
@@ -562,6 +575,7 @@ class Tracer(AgenticTracing):
             UploadTraces(json_file_path=filepath_3,
                          project_name=self.project_name,
                          project_id=self.project_id,
+                         external_id=self.external_id,
                          dataset_name=self.dataset_name,
                          user_detail=self._pass_user_data(),
                          base_url=self.base_url
