@@ -589,6 +589,7 @@ class Tracer(AgenticTracing):
 
             user_detail = self._pass_user_data()
             converted_back_to_callback = self.llamaindex_tracer.stop()
+            converted_back_to_callback[0]['external_id'] = self.external_id
 
             filepath_3 = os.path.join(os.getcwd(), "llama_final_result.json")
             with open(filepath_3, 'w') as f:
@@ -598,13 +599,14 @@ class Tracer(AgenticTracing):
                 UploadTraces(json_file_path=filepath_3,
                              project_name=self.project_name,
                              project_id=self.project_id,
+                             external_id=self.external_id,
                              dataset_name=self.dataset_name,
                              user_detail=user_detail,
                              base_url=self.base_url
                              ).upload_traces()
             return 
         else:
-            super().stop()
+            super().stop(external_id=self.external_id)
 
     def get_upload_status(self):
         """Check the status of the trace upload."""

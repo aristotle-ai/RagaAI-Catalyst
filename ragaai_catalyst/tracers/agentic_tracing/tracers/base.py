@@ -255,7 +255,7 @@ class BaseTracer:
             # Sleep before checking again
             time.sleep(1.0)
 
-    def stop(self):
+    def stop(self, external_id=None):
         """Stop the trace and save to JSON file, then submit to background uploader"""
         if hasattr(self, "trace"):
             # Set end times
@@ -294,6 +294,9 @@ class BaseTracer:
             # Add interactions
             interactions = self.format_interactions()
             cleaned_trace_data["workflow"] = interactions["workflow"]
+
+            # Add external ID if provided
+            cleaned_trace_data["external_id"] = external_id
 
             # Save trace data to file
             with open(filepath, "w") as f:

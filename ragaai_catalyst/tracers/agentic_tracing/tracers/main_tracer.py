@@ -206,7 +206,7 @@ class AgenticTracing(
         if self.auto_instrument_custom:
             self.instrument_custom_calls()
 
-    def stop(self):
+    def stop(self, external_id=None):
         """Stop tracing and save results"""
         if self.is_active:
             # Restore original print and input functions
@@ -224,7 +224,7 @@ class AgenticTracing(
             self.visited_metrics.clear()
 
             # Stop base tracer (includes saving to file)
-            super().stop()
+            super().stop(external_id=external_id)
 
             # Cleanup
             self.unpatch_llm_calls()
