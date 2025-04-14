@@ -14,7 +14,7 @@ class DynamicTraceExporter(SpanExporter):
     certain properties to be updated dynamically during execution.
     """
     
-    def __init__(self, files_to_zip, project_name, project_id, dataset_name, user_details, base_url, custom_model_cost, timeout=120):
+    def __init__(self, files_to_zip, project_name, project_id, dataset_name, user_details, base_url, custom_model_cost, timeout=120, post_processor = None):
         """
         Initialize the DynamicTraceExporter.
         
@@ -25,6 +25,7 @@ class DynamicTraceExporter(SpanExporter):
             dataset_name: Dataset name
             user_details: User details
             base_url: Base URL for API
+            post_processor: Post processing function before uploading trace
         """
         self._exporter = RAGATraceExporter(
             files_to_zip=files_to_zip,
@@ -34,7 +35,8 @@ class DynamicTraceExporter(SpanExporter):
             user_details=user_details,
             base_url=base_url,
             custom_model_cost=custom_model_cost,
-            timeout=timeout
+            timeout=timeout,
+            post_processor= post_processor
         )
         
         # Store the initial values
@@ -45,6 +47,7 @@ class DynamicTraceExporter(SpanExporter):
         self._user_details = user_details
         self._base_url = base_url
         self._custom_model_cost = custom_model_cost
+        self._post_processor = post_processor
 
     
     def export(self, spans):
@@ -101,6 +104,7 @@ class DynamicTraceExporter(SpanExporter):
         self._exporter.user_details = self._user_details
         self._exporter.base_url = self._base_url
         self._exporter.custom_model_cost = self._custom_model_cost
+        self._exporter.post_processor = self._post_processor
     
     # Getter and setter methods for dynamic properties
     

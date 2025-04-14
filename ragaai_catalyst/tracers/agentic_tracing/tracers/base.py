@@ -85,6 +85,9 @@ class BaseTracer:
         self.system_monitor = None
         self.gt = None
 
+        # For post processing of tracing file before uploading
+        self.post_processor = None
+
         # For upload tracking
         self.upload_task_id = None
         
@@ -141,6 +144,21 @@ class BaseTracer:
                 time.sleep(self.interval_time)
             except Exception as e:
                 logger.warning(f"Sleep interrupted in network tracking: {str(e)}")
+
+    def register_post_processor(self, post_processor_func):
+        """
+        Register a post-processing function that will be called after trace generation.
+        
+        Args:
+            post_processor_func (callable): A function that takes a trace JSON file path as input
+                and returns a processed trace JSON file path.
+                The function signature should be:
+                def post_processor_func(original_trace_json_path: os.PathLike) -> os.PathLike
+        """
+        if not callable(post_processor_func):
+            raise TypeError("post_processor_func must be a callable")
+        self.post_processor = post_processor_func
+        logger.debug("Post-processor function registered successfully in BaseTracer")
 
     def start(self):
         """Initialize a new trace"""
@@ -301,12 +319,19 @@ class BaseTracer:
 
             logger.info("Traces saved successfully.")
             logger.debug(f"Trace saved to {filepath}")
+
+            # Apply post-processor if registered
+            if self.post_processor is not None:
+                try:
+                    filepath = self.post_processor(filepath)
+                    logger.debug(f"Post-processor applied successfully in BaseTracer, new path: {filepath}")
+                except Exception as e:
+                    logger.error(f"Error in post-processing in BaseTracer: {e}")
             
             # Make sure uploader process is available
             ensure_uploader_running()
 
             logger.debug("Base URL used for uploading: {}".format(self.base_url))
-            
             # Submit to background process for uploading using futures
             self.upload_task_id = submit_upload_task(
                 filepath=filepath,

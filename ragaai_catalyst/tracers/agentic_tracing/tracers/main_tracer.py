@@ -156,6 +156,12 @@ class AgenticTracing(
                 self.current_component_id.set(None)
                 self.user_interaction_tracer.component_id.set(None)
 
+    def register_post_processor(self, post_processor_func):
+        """
+        Pass through the post-processor registration to the BaseTracer
+        """
+        super().register_post_processor(post_processor_func)
+
     def start(self):
         """Start tracing"""
         self.is_active = True

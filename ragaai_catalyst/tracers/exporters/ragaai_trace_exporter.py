@@ -19,7 +19,7 @@ logging_level = (
 
 
 class RAGATraceExporter(SpanExporter):
-    def __init__(self, files_to_zip, project_name, project_id, dataset_name, user_details, base_url, custom_model_cost, timeout=120):
+    def __init__(self, files_to_zip, project_name, project_id, dataset_name, user_details, base_url, custom_model_cost, timeout=120, post_processor = None):
         self.trace_spans = dict()
         self.tmp_dir = tempfile.gettempdir()
         self.files_to_zip = files_to_zip
@@ -31,6 +31,7 @@ class RAGATraceExporter(SpanExporter):
         self.custom_model_cost = custom_model_cost
         self.system_monitor = SystemMonitor(dataset_name)
         self.timeout = timeout
+        self.post_processor = post_processor
 
     def export(self, spans):
         for span in spans:
@@ -73,9 +74,10 @@ class RAGATraceExporter(SpanExporter):
             ragaai_trace_details = self.prepare_trace(spans, trace_id)
         except Exception as e:
             print(f"Error converting trace {trace_id}: {e}")
-        
         # Upload the trace if upload_trace function is provided
         try:
+            if self.post_processor!=None:
+                ragaai_trace_details['trace_file_path'] = self.post_processor(ragaai_trace_details['trace_file_path'])
             self.upload_trace(ragaai_trace_details, trace_id)
         except Exception as e:
             print(f"Error uploading trace {trace_id}: {e}")
@@ -151,8 +153,7 @@ class RAGATraceExporter(SpanExporter):
     def upload_trace(self, ragaai_trace_details, trace_id):
         filepath = ragaai_trace_details['trace_file_path']
         hash_id = ragaai_trace_details['hash_id']
-        zip_path = ragaai_trace_details['code_zip_path']  
-
+        zip_path = ragaai_trace_details['code_zip_path']
         self.upload_task_id = submit_upload_task(
                 filepath=filepath,
                 hash_id=hash_id,
