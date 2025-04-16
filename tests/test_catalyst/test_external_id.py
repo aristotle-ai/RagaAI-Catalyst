@@ -24,8 +24,8 @@ OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
 # === Raga Catalyst Initialization ===
 catalyst = RagaAICatalyst(
-    access_key="1q2igAYCIlpSBufkdB6f",
-    secret_key="yG6TJOgES8D9jAi9OI0X6SgvZNtkcFvkOruukJay",
+    access_key=os.getenv("RAGAAI_CATALYST_ACCESS_KEY_DEV5"),
+    secret_key=os.getenv("RAGAAI_CATALYST_SECRET_KEY_DEV5"),
     base_url="https://llm-dev5.ragaai.ai/api"
 )
 
