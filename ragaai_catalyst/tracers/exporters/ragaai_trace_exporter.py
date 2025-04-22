@@ -128,12 +128,12 @@ class RAGATraceExporter(SpanExporter):
                 print(f"Error in convert_json_format function: {trace_id}: {e}")
                 return None
             
-            try:
-                interactions = format_interactions(ragaai_trace)         
-                ragaai_trace["workflow"] = interactions['workflow']
-            except Exception as e:
-                print(f"Error in format_interactions function: {trace_id}: {e}")
-                return None
+            # try:
+            #     interactions = format_interactions(ragaai_trace)         
+            #     ragaai_trace["workflow"] = interactions['workflow']
+            # except Exception as e:
+            #     print(f"Error in format_interactions function: {trace_id}: {e}")
+            #     return None
 
             try:
                 # Add source code hash

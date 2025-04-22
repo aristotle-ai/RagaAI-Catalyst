@@ -224,6 +224,35 @@ def get_spans(input_trace, custom_model_cost):
             data = children
     return data
 
+def format_spans(spans):
+    # Track occurrences of each span name
+    name_occurrences = {}
+    
+    formatted_spans = []
+    for span in spans:
+        # Get the current span name
+        span_name = span.get('name', '')
+        
+        # Update occurrence count
+        if span_name in name_occurrences:
+            name_occurrences[span_name] += 1
+        else:
+            name_occurrences[span_name] = 0
+        
+        # Create a copy of the span to modify
+        formatted_span = span.copy()
+        
+        # Update the name with occurrence number
+        formatted_span['name'] = f"{span_name}.{name_occurrences[span_name]}"
+        
+        # Add hash_id from span.context.span_id
+        if 'context' in span and 'span_id' in span['context']:
+            formatted_span['hash_id'] = span['context']['span_id']
+        
+        formatted_spans.append(formatted_span)
+    
+    return formatted_spans
+
 def convert_json_format(input_trace, custom_model_cost):
     """
     Converts a JSON from one format to UI format, handling nested spans.
@@ -241,59 +270,20 @@ def convert_json_format(input_trace, custom_model_cost):
         "start_time": convert_time_format(min(item["start_time"] for item in input_trace)),
         "end_time": convert_time_format(max(item["end_time"] for item in input_trace))
     }
-    final_trace["metadata"] = {
-        "tokens": {
-            "prompt_tokens": 0.0,
-            "completion_tokens": 0.0,
-            "total_tokens": 0.0
-        },
-        "cost": {
-            "input_cost": 0.0,
-            "output_cost": 0.0,
-            "total_cost": 0.0
-        }    
-    }
+
     final_trace["replays"] = {"source": None}
     final_trace["data"] = [{}]
     final_trace["network_calls"] = []
     final_trace["interactions"] = []
-
-    # import pdb; pdb.set_trace()
-
-    # Helper to recursively extract cost/token info from all spans
-    def accumulate_metrics(span):
-        if span["type"] == "llm" and "info" in span:
-            info = span["info"]
-            cost = info.get("cost", {})
-            tokens = info.get("tokens", {})
-
-            final_trace["metadata"]["tokens"]["prompt_tokens"] += tokens.get("prompt_tokens", 0.0)
-            final_trace["metadata"]["tokens"]["completion_tokens"] += tokens.get("completion_tokens", 0.0)
-            final_trace["metadata"]["tokens"]["total_tokens"] += tokens.get("total_tokens", 0.0)
-
-            final_trace["metadata"]["cost"]["input_cost"] += cost.get("input_cost", 0.0)
-            final_trace["metadata"]["cost"]["output_cost"] += cost.get("output_cost", 0.0)
-            final_trace["metadata"]["cost"]["total_cost"] += cost.get("total_cost", 0.0)
-
-        # Recursively process children
-        children = span.get("data", {}).get("children", [])
-        for child in children:
-            accumulate_metrics(child)
+    final_trace['metadata'] = {"system_info": {}, "resources": {}}    
 
     # Extract and attach spans
     try:
-        spans = get_spans(input_trace, custom_model_cost)
+        spans = format_spans(input_trace)
         final_trace["data"][0]["spans"] = spans
 
-        # Accumulate from root spans and their children
-        for span in spans:
-            accumulate_metrics(span)
     except Exception as e:
         raise Exception(f"Error in get_spans function: {e}")
-
-    # Total metadata summary
-    final_trace["metadata"]["total_cost"] = final_trace["metadata"]["cost"]["total_cost"]
-    final_trace["metadata"]["total_tokens"] = final_trace["metadata"]["tokens"]["total_tokens"]
 
     return final_trace
 
