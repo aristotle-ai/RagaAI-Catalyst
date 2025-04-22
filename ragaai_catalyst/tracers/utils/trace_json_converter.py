@@ -272,10 +272,10 @@ def convert_json_format(input_trace, custom_model_cost):
     }
 
     final_trace["replays"] = {"source": None}
-    final_trace["data"] = [{}]
     final_trace["network_calls"] = []
-    final_trace["interactions"] = []
     final_trace['metadata'] = {"system_info": {}, "resources": {}}    
+    final_trace["data"] = [{}]
+    final_trace["interactions"] = []
 
     # Extract and attach spans
     try:
