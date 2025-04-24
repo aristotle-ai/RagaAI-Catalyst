@@ -283,10 +283,11 @@ def get_tracer_type(
 
         for tracer_type, _ in sorted_tracers:
             project_type = "Agentic Application"
+            suggested_tracer = f"agentic/{tracer_type}"
             if tracer_type in {"llamaindex", "langchain"} and usecase == "rag":
                 project_type = "Q/A"
-
-            suggested_tracer = f"agentic/{tracer_type}"
+                suggested_tracer = f"{tracer_type}"
+                
             code = f"""
 #from ragaai_catalyst import RagaAICatalyst, init_tracing
 #from ragaai_catalyst.tracers import Tracer
