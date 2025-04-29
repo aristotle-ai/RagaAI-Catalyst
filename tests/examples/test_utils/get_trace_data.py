@@ -37,6 +37,7 @@ def extract_information(logs: str) -> str:
     # Define the patterns
     patterns = [
         re.compile(r"Trace saved to (.*)$"), 
+        re.compile(r"Trace file saved at (.*)$"),
         # re.compile(r"Uploading trace metrics for (.*)$"),
         # re.compile(r"Uploading agentic traces for (.*)$"),
         re.compile(r"Submitting new upload task for file: (.*)$")
