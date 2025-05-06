@@ -8,6 +8,7 @@ from typing import Union
 import logging
 from .ragaai_catalyst import RagaAICatalyst
 import pandas as pd
+import io
 logger = logging.getLogger(__name__)
 get_token = RagaAICatalyst.get_token
 
@@ -123,15 +124,12 @@ class Dataset:
 
     ###################### CSV Upload APIs ###################
 
-    def get_dataset_columns(self, dataset_name):
+
+    def get_dataset_id(self, dataset_name):
         list_dataset = self.list_datasets()
         if dataset_name not in list_dataset:
             raise ValueError(f"Dataset {dataset_name} does not exists. Please enter a valid dataset name")
 
-        headers = {
-            "Authorization": f"Bearer {os.getenv('RAGAAI_CATALYST_TOKEN')}",
-            "X-Project-Name": self.project_name,
-        }
         headers = {
                 'Content-Type': 'application/json',
                 "Authorization": f"Bearer {os.getenv('RAGAAI_CATALYST_TOKEN')}",
@@ -151,7 +149,17 @@ class Dataset:
         except requests.exceptions.RequestException as e:
             logger.error(f"Failed to list datasets: {e}")
             raise
+        return dataset_id
+        
 
+    def get_dataset_columns(self, dataset_name):
+        headers = {
+                'Content-Type': 'application/json',
+                "Authorization": f"Bearer {os.getenv('RAGAAI_CATALYST_TOKEN')}",
+                "X-Project-Id": str(self.project_id),
+            }
+      
+        dataset_id = self.get_dataset_id(dataset_name=dataset_name)
         try:
             response = requests.get(
                 f"{Dataset.BASE_URL}/v2/llm/dataset/{dataset_id}?initialCols=0",
@@ -168,6 +176,79 @@ class Dataset:
         except requests.exceptions.RequestException as e:
             logger.error(f"Failed to get CSV columns: {e}")
             raise
+
+    def get_dataset(self, dataset_name):
+
+        def get_presignedUrl():
+            headers = {
+                'Content-Type': 'application/json',
+                "Authorization": f"Bearer {os.getenv('RAGAAI_CATALYST_TOKEN')}",
+                'X-Project-Id': str(self.project_id),
+                }
+            
+            dataset_id = self.get_dataset_id(dataset_name=dataset_name)
+            
+            data = {
+                "fields": [
+                    "*"
+                ],
+                "datasetId": str(dataset_id),
+                "rowFilterList": [],
+                "export": True
+                }
+            try:    
+                response = requests.post(
+                    f'{Dataset.BASE_URL}/v1/llm/docs', 
+                    headers=headers, 
+                    json=data,
+                    timeout=Dataset.TIMEOUT)
+                response.raise_for_status()
+                return response.json()
+            except requests.exceptions.HTTPError as http_err:
+                logger.error(f"HTTP error occurred: {http_err}")
+            except requests.exceptions.ConnectionError as conn_err:
+                logger.error(f"Connection error occurred: {conn_err}")
+            except requests.exceptions.Timeout as timeout_err:
+                logger.error(f"Timeout error occurred: {timeout_err}")
+            except requests.exceptions.RequestException as req_err:
+                logger.error(f"An error occurred: {req_err}")
+            except Exception as e:
+                logger.error(f"An unexpected error occurred: {e}")
+                return {}
+
+        def parse_response():
+            try:
+                response = get_presignedUrl()
+                preSignedURL = response["data"]["preSignedURL"]
+                response = requests.get(preSignedURL, timeout=Dataset.TIMEOUT)
+                response.raise_for_status()
+                return response.text
+            except requests.exceptions.HTTPError as http_err:
+                logger.error(f"HTTP error occurred: {http_err}")
+            except requests.exceptions.ConnectionError as conn_err:
+                logger.error(f"Connection error occurred: {conn_err}")
+            except requests.exceptions.Timeout as timeout_err:
+                logger.error(f"Timeout error occurred: {timeout_err}")
+            except requests.exceptions.RequestException as req_err:
+                logger.error(f"An error occurred: {req_err}")
+            except Exception as e:
+                logger.error(f"An unexpected error occurred: {e}")
+                return ""
+
+        response_text = parse_response()
+        if response_text:
+            df = pd.read_csv(io.StringIO(response_text))
+
+            column_list = df.columns.to_list()
+            # Remove unwanted columns
+            column_list = [col for col in column_list if not col.startswith('_')]
+            column_list = [col for col in column_list if '.' not in col]
+            # Remove _claims_ columns
+            column_list = [col for col in column_list if '_claims_' not in col]
+            return df[column_list]
+        else:
+            return pd.DataFrame()
+
 
     def create_from_csv(self, csv_path, dataset_name, schema_mapping):
         list_dataset = self.list_datasets()
