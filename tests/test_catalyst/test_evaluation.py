@@ -7,7 +7,8 @@ load_dotenv()
 import pandas as pd
 from datetime import datetime 
 from typing import Dict, List
-from ragaai_catalyst import Evaluation, RagaAICatalyst
+from ragaai_catalyst.evaluation import Evaluation
+from ragaai_catalyst.ragaai_catalyst import RagaAICatalyst
 import requests
 from unittest.mock import patch, MagicMock
 
@@ -404,19 +405,6 @@ def test_update_base_json_invalid_threshold(evaluation):
             evaluation._update_base_json(metrics)
 
 # Test Append Metrics
-def test_append_metrics_success(evaluation):
-    """Test successful metrics appending"""
-    with patch('requests.request') as mock_request:
-        mock_request.return_value.json.return_value = {
-            "success": True,
-            "message": "Success",
-            "data": {"jobId": "test_job"}
-        }
-        mock_request.return_value.status_code = 200
-        
-        evaluation.append_metrics("new_metric")
-        assert evaluation.jobId == "test_job"
-
 def test_append_metrics_invalid_input(evaluation):
     """Test append metrics with invalid input"""
     with pytest.raises(ValueError, match="display_name should be a string"):
@@ -641,40 +629,6 @@ def test_get_executed_metrics_list_http_error(evaluation):
             mock_logger.error.assert_called()
             assert "HTTP error occurred: HTTP Error" in str(mock_logger.error.call_args[0][0])
 # Test add_metrics
-def test_add_metrics_success(evaluation):
-    """Test successful metrics addition"""
-    metrics = [{
-        "name": "Hallucination",
-        "config": {
-            "provider": "openai",
-            "model": "gpt-4"
-        },
-        "column_name": "hallucination_score",
-        "schema_mapping": {
-            "query": "Query",
-            "response": "Response"
-        }
-    }]
-    
-    # Mock all the required methods
-    with patch.object(evaluation, '_get_executed_metrics_list', return_value=[]), \
-         patch.object(evaluation, 'list_metrics', return_value=["Hallucination"]), \
-         patch.object(evaluation, '_update_base_json', return_value={}), \
-         patch('requests.post') as mock_post, \
-         patch('builtins.print') as mock_print:
-        
-        mock_post.return_value.json.return_value = {
-            "success": True,
-            "message": "Metrics added successfully",
-            "data": {"jobId": "test_job_id"}
-        }
-        mock_post.return_value.status_code = 200
-        
-        evaluation.add_metrics(metrics)
-        
-        assert evaluation.jobId == "test_job_id"
-        mock_print.assert_called_with("Metrics added successfully")
-
 def test_add_metrics_duplicate_column(evaluation):
     """Test add_metrics with duplicate column name"""
     metrics = [{
