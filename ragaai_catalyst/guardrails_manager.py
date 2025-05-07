@@ -194,16 +194,13 @@ class GuardrailsManager:
         response = requests.request("POST", f"{self.base_url}/guardrail/deployment", headers=headers, data=payload, timeout=self.timeout)
         if response.status_code == 409:
             raise ValueError(f"Data with '{deployment_name}' already exists, choose a unique name")
-        if response.status_code in [200, 201]:
-            # Print message if available in response
-            if "message" in response.json():
-                print(response.json()["message"])
+        if response.json()["success"]:
+            print(response.json()["message"])
             deployment_ids = self.list_deployment_ids()
             self.deployment_id = [_["id"] for _ in deployment_ids if _["name"]==self.deployment_name][0]
             return self.deployment_id
         else:
-            print(f"Error creating deployment: {response.status_code}")
-            print(response.text)
+            print(response)
             
 
     def add_guardrails(self, deployment_id, guardrails, guardrails_config={}):
