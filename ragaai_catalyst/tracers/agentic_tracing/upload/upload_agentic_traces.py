@@ -43,22 +43,40 @@ class UploadAgenticTraces:
         try:
             start_time = time.time()
             endpoint = f"{self.base_url}/v1/llm/presigned-url"
-            response = requests.request("GET", 
+            # Changed to POST from GET
+            response = requests.request("POST", 
                                         endpoint, 
                                         headers=headers, 
                                         data=payload,
                                         timeout=self.timeout)
             elapsed_ms = (time.time() - start_time) * 1000
             logger.debug(
-                f"API Call: [GET] {endpoint} | Status: {response.status_code} | Time: {elapsed_ms:.2f}ms")
+                f"API Call: [POST] {endpoint} | Status: {response.status_code} | Time: {elapsed_ms:.2f}ms")
             
             if response.status_code == 200:
                 presignedURLs = response.json()["data"]["presignedUrls"][0]
                 presignedurl = self.update_presigned_url(presignedURLs,self.base_url)
                 return presignedurl
+            else:
+                # If POST fails, try GET
+                response = requests.request("GET", 
+                                        endpoint, 
+                                        headers=headers, 
+                                        data=payload,
+                                        timeout=self.timeout)
+                elapsed_ms = (time.time() - start_time) * 1000
+                logger.debug(
+                    f"API Call: [GET] {endpoint} | Status: {response.status_code} | Time: {elapsed_ms:.2f}ms")
+                if response.status_code == 200:
+                    presignedURLs = response.json()["data"]["presignedUrls"][0]
+                    presignedurl = self.update_presigned_url(presignedURLs,self.base_url)
+                    return presignedurl
+
+                logger.error(f"Error while getting presigned url: {response.json()['message']}")
+                return None
             
         except requests.exceptions.RequestException as e:
-            print(f"Error while getting presigned url: {e}")
+            logger.error(f"Error while getting presigned url: {e}")
             return None
         
     def update_presigned_url(self, presigned_url, base_url):

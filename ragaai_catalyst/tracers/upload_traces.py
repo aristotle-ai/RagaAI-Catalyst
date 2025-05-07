@@ -4,7 +4,8 @@ import os
 import time
 import logging
 from datetime import datetime
-
+import logging
+logger = logging.getLogger(__name__)
 logger = logging.getLogger(__name__)
 
 class UploadTraces:
@@ -39,17 +40,22 @@ class UploadTraces:
             "model_name": {"columnType": "metadata"},
             "total_cost": {"columnType": "metadata", "dataType": "numerical"},
             "total_latency": {"columnType": "metadata", "dataType": "numerical"},
+            "error": {"columnType": "metadata"}
         }
 
         if additional_metadata_keys:
             for key in additional_metadata_keys:
                 if key == "model_name":
                     SCHEMA_MAPPING_NEW['response']["modelName"] = additional_metadata_keys[key]
+                elif key == "error":
+                    pass
                 else:
                     SCHEMA_MAPPING_NEW[key] = {"columnType": key, "parentColumn": "response"}
 
-        if "error" in additional_metadata_keys and additional_metadata_keys["error"]:
-            SCHEMA_MAPPING_NEW["error"] = {"columnType": "metadata"}
+        if self.user_detail and self.user_detail["trace_user_detail"]["metadata"]:
+            for key in self.user_detail["trace_user_detail"]["metadata"]:
+                if key not in SCHEMA_MAPPING_NEW:
+                    SCHEMA_MAPPING_NEW[key] = {"columnType": "metadata"}
 
         if additional_pipeline_keys:
             for key in additional_pipeline_keys:
@@ -102,7 +108,7 @@ class UploadTraces:
         try:
             start_time = time.time()
             endpoint = f"{self.base_url}/v1/llm/presigned-url"
-            response = requests.request("GET", 
+            response = requests.request("POST", 
                                         endpoint, 
                                         headers=headers, 
                                         data=payload,

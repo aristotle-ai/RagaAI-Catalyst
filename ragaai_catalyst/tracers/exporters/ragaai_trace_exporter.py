@@ -86,7 +86,7 @@ class RAGATraceExporter(SpanExporter):
         except Exception as e:
             print(f"Error converting trace {trace_id}: {e}")
             return  # Exit early if conversion fails
-            
+
         # Check if trace details are None (conversion failed)
         if ragaai_trace_details is None:
             logger.error(f"Cannot upload trace {trace_id}: conversion failed and returned None")
@@ -94,7 +94,7 @@ class RAGATraceExporter(SpanExporter):
             
         # Upload the trace if upload_trace function is provided
         try:
-            if self.post_processor!=None:
+            if self.post_processor!=None and self.tracer_type != "langchain":
                 ragaai_trace_details['trace_file_path'] = self.post_processor(ragaai_trace_details['trace_file_path'])
             self.upload_trace(ragaai_trace_details, trace_id)
         except Exception as e:
@@ -157,11 +157,24 @@ class RAGATraceExporter(SpanExporter):
                 print(f"Error in adding tracer type: {trace_id}: {e}")
                 return None
             
+            #Add user passed metadata to the trace
+            try:
+                if self.user_details.get("trace_user_detail").get("metadata") and isinstance(self.user_details.get("trace_user_detail").get("metadata"), dict):
+                    for key, value in self.user_details.get("trace_user_detail").get("metadata").items():
+                        if key in ["log_source", "recorded_on"]:
+                            continue
+                        ragaai_trace["metadata"][key] = value
+            except Exception as e:
+                print(f"Error in adding metadata: {trace_id}: {e}")
+                return None
+            
             try:
                 # Save the trace_json 
                 trace_file_path = os.path.join(self.tmp_dir, f"{trace_id}.json")
                 with open(trace_file_path, "w") as file:
                     json.dump(ragaai_trace, file, cls=TracerJSONEncoder, indent=2)
+                with open(os.path.join(os.getcwd(), 'rag_agent_traces.json'), 'w') as f:
+                    json.dump(ragaai_trace, f, cls=TracerJSONEncoder, indent=2)
             except Exception as e:
                 print(f"Error in saving trace json: {trace_id}: {e}")
                 return None

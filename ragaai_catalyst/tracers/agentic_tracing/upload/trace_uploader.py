@@ -137,6 +137,7 @@ def process_upload(task_id: str, filepath: str, hash_id: str, zip_path: str,
                 dataset_name=dataset_name,
                 project_name=project_name,
                 base_url=base_url,
+                user_details=user_details,
                 timeout=timeout
             )
             logger.info(f"Dataset schema created: {response}")

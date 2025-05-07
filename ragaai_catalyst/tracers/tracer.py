@@ -426,12 +426,20 @@ class Tracer(AgenticTracing):
             with open(original_path, 'r') as f:
                 data = json.load(f)
             
-            # Apply masking only to data['data']
-            data['data'] = recursive_mask_values(data['data'])
-            
-            # Create new filename with 'processed_' prefix in /var/tmp/
+            # Apply masking only to data['data'] or in case of langchain rag apply on 'traces' field of each element
+            if 'data' in data:
+                data['data'] = recursive_mask_values(data['data'])
+            elif isinstance(data,list):
+                masked_traces = []
+                for item in data:
+                    if isinstance(item, dict) and 'traces' in item:
+                        item['traces'] = recursive_mask_values(item['traces'])
+                        masked_traces.append(item)
+                data = masked_traces
+            # Create new filename with 'processed_' prefix 
             new_filename = f"processed_{original_path.name}"
-            final_trace_json_path = Path("/var/tmp") / new_filename
+            dir_name, original_filename = os.path.split(original_trace_json_path)
+            final_trace_json_path = Path(dir_name) / new_filename
             
             # Write modified data to the new file
             with open(final_trace_json_path, 'w') as f:
@@ -537,7 +545,7 @@ class Tracer(AgenticTracing):
 
     def _improve_metadata(self, metadata, tracer_type):
         if metadata is None:
-            metadata = {"metadata": {}}
+            metadata = {}
         metadata.setdefault("log_source", f"{tracer_type}_tracer")
         metadata.setdefault("recorded_on", str(datetime.datetime.now()))
         return metadata
@@ -852,16 +860,36 @@ class Tracer(AgenticTracing):
 
         Args:
             context: Additional context information to be added to the trace. Can be a string.
-
-        Raises:
-            ValueError: If tracer_type is not 'langchain' or 'llamaindex'.
         """
         if self.tracer_type not in ["langchain", "llamaindex"]:
-            raise ValueError("add_context is only supported for 'langchain' and 'llamaindex' tracer types")
+            logger.warning("add_context is only supported for 'langchain' and 'llamaindex' tracer types")
+            return
         
         # Convert string context to string if needed
         if isinstance(context, str):
             self.dynamic_exporter.user_context = context
             self.user_context = context
         else:
-            raise TypeError("context must be a string")
+            logger.warning("context must be a string")
+    
+    def add_metadata(self, metadata):
+        """
+        Add metadata information to the trace. If metadata is a dictionary, it will be merged with existing metadata.
+        Non-dictionary metadata or keys not present in the existing metadata will be logged as warnings.
+
+        Args:
+            metadata: Additional metadata information to be added to the trace. Should be a dictionary.
+        """        
+        # Convert string metadata to string if needed
+        user_details = self.user_details
+        user_metadata = user_details["trace_user_detail"]["metadata"]
+        if isinstance(metadata, dict):
+            for key, value in metadata.items():
+                if key in user_metadata:
+                    user_metadata[key] = value
+                else:
+                    logger.warning(f"Key '{key}' not found in metadata")
+            self.dynamic_exporter.user_details = user_details
+            self.metadata = user_metadata
+        else:
+            logger.warning("metadata must be a dictionary")
