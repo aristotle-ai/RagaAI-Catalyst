@@ -50,7 +50,12 @@ class GuardExecutor:
             'Authorization': f'Bearer {os.getenv("RAGAAI_CATALYST_TOKEN")}'
         }
         try:
+            start_time = time.time()
             response = requests.request("POST", api, headers=headers, data=payload,timeout=self.guard_manager.timeout)
+            elapsed_ms = (time.time() - start_time) * 1000
+            logger.debug(
+                f"API Call: [POST] {api} | Status: {response.status_code} | Time: {elapsed_ms:.2f}ms")
+            response.raise_for_status()
         except Exception as e:
             print('Failed running guardrail: ',str(e))
             return None

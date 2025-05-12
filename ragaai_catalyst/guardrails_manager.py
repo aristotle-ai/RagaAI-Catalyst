@@ -1,7 +1,9 @@
 import requests
 import json
 import os
+import time
 import logging
+
 logger = logging.getLogger(__name__)
 from .utils import response_checker
 from .ragaai_catalyst import RagaAICatalyst
@@ -34,7 +36,19 @@ class GuardrailsManager:
         :return: A tuple containing a list of project names and a list of dictionaries with project IDs and names.
         """
         headers = {'Authorization': f'Bearer {os.getenv("RAGAAI_CATALYST_TOKEN")}'}
-        response = requests.request("GET", f"{self.base_url}/v2/llm/projects?size={self.num_projects}", headers=headers, timeout=self.timeout)
+        try:
+            start_time = time.time()
+            endpoint = f"{self.base_url}/v2/llm/projects?size={self.num_projects}"
+            response = requests.request("GET", 
+                                        endpoint, 
+                                        headers=headers, 
+                                        timeout=self.timeout)
+            elapsed_ms = (time.time() - start_time) * 1000
+            logger.debug(
+                f"API Call: [GET] {endpoint} | Status: {response.status_code} | Time: {elapsed_ms:.2f}ms")
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Error in API call to {endpoint}: {e}")
+            raise
         project_content = response.json()["data"]["content"]
         list_project = [_["name"] for _ in project_content]
         project_name_with_id = [{"id": _["id"], "name": _["name"]} for _ in project_content]
@@ -52,7 +66,20 @@ class GuardrailsManager:
                 'Authorization': f'Bearer {os.getenv("RAGAAI_CATALYST_TOKEN")}',
                 'X-Project-Id': str(self.project_id)
                 }
-        response = requests.request("GET", f"{self.base_url}/guardrail/deployment?size={self.num_projects}&page=0&sort=lastUsedAt,desc", headers=headers, data=payload, timeout=self.timeout)
+        try:
+            start_time = time.time()
+            endpoint = f"{self.base_url}/guardrail/deployment?size={self.num_projects}&page=0&sort=lastUsedAt,desc"
+            response = requests.request("GET", 
+                                        endpoint, 
+                                        headers=headers, 
+                                        data=payload,
+                                        timeout=self.timeout)
+            elapsed_ms = (time.time() - start_time) * 1000
+            logger.debug(
+                f"API Call: [GET] {endpoint} | Status: {response.status_code} | Time: {elapsed_ms:.2f}ms")
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Error in API call to {endpoint}: {e}")
+            raise
         deployment_ids_content = response.json()["data"]["content"]
         deployment_ids_content = [{"id": _["id"], "name": _["name"]} for _ in deployment_ids_content]
         return deployment_ids_content
@@ -70,7 +97,20 @@ class GuardrailsManager:
                 'Authorization': f'Bearer {os.getenv("RAGAAI_CATALYST_TOKEN")}',
                 'X-Project-Id': str(self.project_id)
                 }
-        response = requests.request("GET", f"{self.base_url}/guardrail/deployment/{deployment_id}", headers=headers, data=payload, timeout=self.timeout)
+        try:
+            start_time = time.time()
+            endpoint = f"{self.base_url}/guardrail/deployment/{deployment_id}"
+            response = requests.request("GET", 
+                                        endpoint, 
+                                        headers=headers, 
+                                        data=payload,
+                                        timeout=self.timeout)
+            elapsed_ms = (time.time() - start_time) * 1000
+            logger.debug(
+                f"API Call: [GET] {endpoint} | Status: {response.status_code} | Time: {elapsed_ms:.2f}ms")
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Error in API call to {endpoint}: {e}")
+            raise
         if response.json()['success']:
             return response.json()
         else:
@@ -89,7 +129,20 @@ class GuardrailsManager:
                 'Authorization': f'Bearer {os.getenv("RAGAAI_CATALYST_TOKEN")}',
                 'X-Project-Id': str(self.project_id)
                 }
-        response = requests.request("GET", f"{self.base_url}/v1/llm/llm-metrics?category=Guardrail", headers=headers, data=payload, timeout=self.timeout)
+        try:
+            start_time = time.time()
+            endpoint = f"{self.base_url}/v1/llm/llm-metrics?category=Guardrail"
+            response = requests.request("GET", 
+                                        endpoint, 
+                                        headers=headers, 
+                                        data=payload,
+                                        timeout=self.timeout)
+            elapsed_ms = (time.time() - start_time) * 1000
+            logger.debug(
+                f"API Call: [GET] {endpoint} | Status: {response.status_code} | Time: {elapsed_ms:.2f}ms")
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Error in API call to {endpoint}: {e}")
+            raise
         list_guardrails_content = response.json()["data"]["metrics"]
         list_guardrails = [_["name"] for _ in list_guardrails_content]
         return list_guardrails
@@ -106,7 +159,20 @@ class GuardrailsManager:
                 'Authorization': f'Bearer {os.getenv("RAGAAI_CATALYST_TOKEN")}',
                 'X-Project-Id': str(self.project_id)
                 }
-        response = requests.request("GET", f"{self.base_url}/guardrail/deployment/configurations", headers=headers, data=payload, timeout=self.timeout)
+        try:
+            start_time = time.time()
+            endpoint = f"{self.base_url}/guardrail/deployment/configurations"
+            response = requests.request("GET", 
+                                        endpoint, 
+                                        headers=headers, 
+                                        data=payload,
+                                        timeout=self.timeout)
+            elapsed_ms = (time.time() - start_time) * 1000
+            logger.debug(
+                f"API Call: [GET] {endpoint} | Status: {response.status_code} | Time: {elapsed_ms:.2f}ms")
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Error in API call to {endpoint}: {e}")
+            raise
         return response.json()["data"]
 
     
@@ -191,7 +257,20 @@ class GuardrailsManager:
                 'Content-Type': 'application/json',
                 'X-Project-Id': str(self.project_id)
                 }
-        response = requests.request("POST", f"{self.base_url}/guardrail/deployment", headers=headers, data=payload, timeout=self.timeout)
+        try:
+            start_time = time.time()
+            endpoint = f"{self.base_url}/guardrail/deployment"
+            response = requests.request("POST", 
+                                        endpoint, 
+                                        headers=headers, 
+                                        data=payload,
+                                        timeout=self.timeout)
+            elapsed_ms = (time.time() - start_time) * 1000
+            logger.debug(
+                f"API Call: [POST] {endpoint} | Status: {response.status_code} | Time: {elapsed_ms:.2f}ms")
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Error in API call to {endpoint}: {e}")
+            raise
         if response.status_code == 409:
             raise ValueError(f"Data with '{deployment_name}' already exists, choose a unique name")
         if response.json()["success"]:
@@ -239,7 +318,20 @@ class GuardrailsManager:
                 'Content-Type': 'application/json',
                 'X-Project-Id': str(self.project_id)
                 }
-        response = requests.request("POST", f"{self.base_url}/guardrail/deployment/{str(self.deployment_id)}/configure", headers=headers, data=payload)
+        try:
+            start_time = time.time()
+            endpoint = f"{self.base_url}/guardrail/deployment/{str(self.deployment_id)}/configure"
+            response = requests.request("POST", 
+                                        endpoint, 
+                                        headers=headers, 
+                                        data=payload,
+                                        timeout=self.timeout)
+            elapsed_ms = (time.time() - start_time) * 1000
+            logger.debug(
+                f"API Call: [POST] {endpoint} | Status: {response.status_code} | Time: {elapsed_ms:.2f}ms")
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Error in API call to {endpoint}: {e}")
+            raise
         if response.json()["success"]:
             print(response.json()["message"])
         else:

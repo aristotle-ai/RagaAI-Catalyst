@@ -152,15 +152,19 @@ class Tracer(AgenticTracing):
         self.external_id = external_id
         
         try:
+            start_time = time.time()
+            endpoint = f"{self.base_url}/v2/llm/projects?size={self.num_projects}"
             response = requests.get(
-                f"{self.base_url}/v2/llm/projects?size={self.num_projects}",
+                endpoint,
                 headers={
                     "Authorization": f'Bearer {os.getenv("RAGAAI_CATALYST_TOKEN")}',
                 },
                 timeout=self.timeout,
             )
             response.raise_for_status()
-            logger.debug("Projects list retrieved successfully")
+            elapsed_ms = (time.time() - start_time) * 1000
+            logger.debug(
+                f"API Call: [GET] {endpoint} | Status: {response.status_code} | Time: {elapsed_ms:.2f}ms")
 
             project_list = [
                 project["name"] for project in response.json()["data"]["content"]

@@ -3,13 +3,28 @@ import csv
 import json
 import tempfile
 import requests
+import time
 from .utils import response_checker
 from typing import Union
 import logging
+from logging.handlers import RotatingFileHandler
 from .ragaai_catalyst import RagaAICatalyst
 import pandas as pd
-logger = logging.getLogger(__name__)
 get_token = RagaAICatalyst.get_token
+
+logging.basicConfig(
+    level=logging.DEBUG,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.StreamHandler(),
+        RotatingFileHandler(
+            os.path.join(log_dir, "dataset.log"),
+            maxBytes=max_file_size,
+            backupCount=backup_count
+        )
+    ]
+)
+logger = logging.getLogger("dataset")
 
 # Job status constants
 JOB_STATUS_FAILED = "failed"
@@ -28,14 +43,20 @@ class Dataset:
         headers = {
             "Authorization": f'Bearer {os.getenv("RAGAAI_CATALYST_TOKEN")}',
         }
+        
         try:
+            start_time = time.time()
+            endpoint = f"{Dataset.BASE_URL}/v2/llm/projects?size={self.num_projects}"
             response = requests.get(
-                f"{Dataset.BASE_URL}/v2/llm/projects?size={self.num_projects}",
+                endpoint,
                 headers=headers,
                 timeout=self.TIMEOUT,
             )
+            elapsed_ms = (time.time() - start_time) * 1000
+            logger.debug(
+                f"API Call: [GET] {endpoint} | Status: {response.status_code} | Time: {elapsed_ms:.2f}ms")
+            
             response.raise_for_status()
-            logger.debug("Projects list retrieved successfully")
             
             project_list = [
                 project["name"] for project in response.json()["data"]["content"]
@@ -71,12 +92,17 @@ class Dataset:
             }
             json_data = {"size": 99999, "page": "0", "projectId": str(self.project_id), "search": ""}
             try:
+                start_time = time.time()
+                endpoint = f"{Dataset.BASE_URL}/v2/llm/dataset"
                 response = requests.post(
-                    f"{Dataset.BASE_URL}/v2/llm/dataset",
+                    endpoint,
                     headers=headers,
                     json=json_data,
                     timeout=Dataset.TIMEOUT,
                 )
+                elapsed_ms = (time.time() - start_time) * 1000
+                logger.debug(
+                    f"API Call: [POST] {endpoint} | Status: {response.status_code} | Time: {elapsed_ms:.2f}ms")
                 response.raise_for_status()
                 return response
             except requests.exceptions.RequestException as e:
@@ -107,11 +133,16 @@ class Dataset:
             "X-Project-Name": self.project_name,
         }
         try:
+            start_time = time.time()
+            endpoint = f"{Dataset.BASE_URL}/v1/llm/schema-elements"
             response = requests.get(
-                f"{Dataset.BASE_URL}/v1/llm/schema-elements",
+                endpoint,
                 headers=headers,
                 timeout=Dataset.TIMEOUT,
             )
+            elapsed_ms = (time.time() - start_time) * 1000
+            logger.debug(
+                f"API Call: [GET] {endpoint} | Status: {response.status_code} | Time: {elapsed_ms:.2f}ms")
             response.raise_for_status()
             response_data = response.json()["data"]["schemaElements"]
             if not response.json()['success']:
@@ -139,12 +170,17 @@ class Dataset:
             }
         json_data = {"size": 12, "page": "0", "projectId": str(self.project_id), "search": ""}
         try:
+            start_time = time.time()
+            endpoint = f"{Dataset.BASE_URL}/v2/llm/dataset"
             response = requests.post(
-                f"{Dataset.BASE_URL}/v2/llm/dataset",
+                endpoint,
                 headers=headers,
                 json=json_data,
                 timeout=Dataset.TIMEOUT,
             )
+            elapsed_ms = (time.time() - start_time) * 1000
+            logger.debug(
+                f"API Call: [POST] {endpoint} | Status: {response.status_code} | Time: {elapsed_ms:.2f}ms")
             response.raise_for_status()
             datasets = response.json()["data"]["content"]
             dataset_id = [dataset["id"] for dataset in datasets if dataset["name"]==dataset_name][0]
@@ -153,11 +189,16 @@ class Dataset:
             raise
 
         try:
+            start_time = time.time()
+            endpoint = f"{Dataset.BASE_URL}/v2/llm/dataset/{dataset_id}?initialCols=0"
             response = requests.get(
-                f"{Dataset.BASE_URL}/v2/llm/dataset/{dataset_id}?initialCols=0",
+                endpoint,
                 headers=headers,
                 timeout=Dataset.TIMEOUT,
             )
+            elapsed_ms = (time.time() - start_time) * 1000
+            logger.debug(
+                f"API Call: [GET] {endpoint} | Status: {response.status_code} | Time: {elapsed_ms:.2f}ms")
             response.raise_for_status()
             dataset_columns = response.json()["data"]["datasetColumnsResponses"]
             dataset_columns = [item["displayName"] for item in dataset_columns]
@@ -181,11 +222,16 @@ class Dataset:
                 "X-Project-Id": str(self.project_id),
             }
             try:
+                start_time = time.time()
+                endpoint = f"{Dataset.BASE_URL}/v2/llm/dataset/csv/presigned-url"
                 response = requests.get(
-                    f"{Dataset.BASE_URL}/v2/llm/dataset/csv/presigned-url",
+                    endpoint,
                     headers=headers,
                     timeout=Dataset.TIMEOUT,
                 )
+                elapsed_ms = (time.time() - start_time) * 1000
+                logger.debug(
+                    f"API Call: [GET] {endpoint} | Status: {response.status_code} | Time: {elapsed_ms:.2f}ms")
                 response.raise_for_status()
                 return response.json()
             except requests.exceptions.RequestException as e:
@@ -240,12 +286,17 @@ class Dataset:
                 "X-Project-Id": str(self.project_id)
             }
             try:
+                start_time = time.time()
+                endpoint = f"{Dataset.BASE_URL}/v2/llm/dataset/csv"
                 response = requests.post(
-                    f"{Dataset.BASE_URL}/v2/llm/dataset/csv",
+                    endpoint,
                     headers=header,
                     json=data,
                     timeout=Dataset.TIMEOUT,
                 )
+                elapsed_ms = (time.time() - start_time) * 1000
+                logger.debug(
+                    f"API Call: [POST] {endpoint} | Status: {response.status_code} | Time: {elapsed_ms:.2f}ms")
                 if response.status_code==400:
                     raise ValueError(response.json()["message"])
                 response.raise_for_status()
@@ -315,11 +366,16 @@ class Dataset:
                 "X-Project-Id": str(self.project_id),
             }
             try:
+                start_time = time.time()
+                endpoint = f"{Dataset.BASE_URL}/v2/llm/dataset/csv/presigned-url"
                 response = requests.get(
-                    f"{Dataset.BASE_URL}/v2/llm/dataset/csv/presigned-url",
+                    endpoint,
                     headers=headers,
                     timeout=Dataset.TIMEOUT,
                 )
+                elapsed_ms = (time.time() - start_time) * 1000
+                logger.debug(
+                    f"API Call: [GET] {endpoint} | Status: {response.status_code} | Time: {elapsed_ms:.2f}ms")
                 response.raise_for_status()
                 return response.json()
             except requests.exceptions.RequestException as e:
@@ -379,25 +435,37 @@ class Dataset:
                 "search": ""
             }
             try:
+                start_time = time.time()
+                endpoint = f"{Dataset.BASE_URL}/v2/llm/dataset"
                 # First get dataset details
                 response = requests.post(
-                    f"{Dataset.BASE_URL}/v2/llm/dataset",
+                    endpoint,
                     headers=headers,
                     json=json_data,
                     timeout=Dataset.TIMEOUT,
                 )
+                elapsed_ms = (time.time() - start_time) * 1000
+                logger.debug(
+                    f"API Call: [POST] {endpoint} | Status: {response.status_code} | Time: {elapsed_ms:.2f}ms")
                 response.raise_for_status()
                 datasets = response.json()["data"]["content"]
                 dataset_id = [dataset["id"] for dataset in datasets if dataset["name"]==dataset_name][0]
 
                 # Get dataset details to extract schema mapping
-                response = requests.get(
-                    f"{Dataset.BASE_URL}/v2/llm/dataset/{dataset_id}?initialCols=0",
-                    headers=headers,
-                    timeout=Dataset.TIMEOUT,
-                )
-                response.raise_for_status()
-                
+                try:
+                    start_time = time.time()
+                    endpoint = f"{Dataset.BASE_URL}/v2/llm/dataset/{dataset_id}?initialCols=0"
+                    response = requests.get(
+                        endpoint,
+                        headers=headers,
+                        timeout=Dataset.TIMEOUT,
+                    )
+                    elapsed_ms = (time.time() - start_time) * 1000
+                    logger.debug(
+                        f"API Call: [GET] {endpoint} | Status: {response.status_code} | Time: {elapsed_ms:.2f}ms")
+                    response.raise_for_status()
+                except requests.exceptions.RequestException as e:
+                    logger.error(f"Failed to get dataset details: {e}")
                 # Extract schema mapping
                 schema_mapping = {}
                 for col in response.json()["data"]["datasetColumnsResponses"]:
@@ -426,18 +494,22 @@ class Dataset:
                 'Authorization': f"Bearer {os.getenv('RAGAAI_CATALYST_TOKEN')}",
                 "X-Project-Id": str(self.project_id)
             }
-            
-            response = requests.post(
-                f"{Dataset.BASE_URL}/v2/llm/dataset/csv",
-                headers=headers,
-                json=data,
-                timeout=Dataset.TIMEOUT,
-            )
-            
-            if response.status_code == 400:
-                raise ValueError(response.json().get("message", "Failed to add rows"))
-            
-            response.raise_for_status()
+            try:
+                start_time = time.time()
+                endpoint = f"{Dataset.BASE_URL}/v2/llm/dataset/csv"
+                response = requests.post(
+                    endpoint,
+                    headers=headers,
+                    json=data,
+                    timeout=Dataset.TIMEOUT,
+                )
+                elapsed_ms = (time.time() - start_time) * 1000
+                logger.debug(
+                    f"API Call: [POST] {endpoint} | Status: {response.status_code} | Time: {elapsed_ms:.2f}ms")
+                response.raise_for_status()
+            except requests.exceptions.RequestException as e:
+                logger.error(f"Failed to add rows to dataset: {e}")
+                raise
             
             # Check response
             response_data = response.json()
@@ -481,6 +553,7 @@ class Dataset:
         json_data = {"size": 12, "page": "0", "projectId": str(self.project_id), "search": ""}
         
         try:
+            start_time = time.time()
             # Get dataset list
             response = requests.post(
                 f"{Dataset.BASE_URL}/v2/llm/dataset",
@@ -488,6 +561,9 @@ class Dataset:
                 json=json_data,
                 timeout=Dataset.TIMEOUT,
             )
+            elapsed_ms = (time.time() - start_time) * 1000
+            logger.debug(
+                f"API Call: [POST] {endpoint} | Status: {response.status_code} | Time: {elapsed_ms:.2f}ms") 
             response.raise_for_status()
             datasets = response.json()["data"]["content"]
             
@@ -617,10 +693,15 @@ class Dataset:
             'X-Project-Id': str(self.project_id),
         }
         try:
+            start_time = time.time()
+            endpoint = f"{Dataset.BASE_URL}/job/status"
             response = requests.get(
-                f'{Dataset.BASE_URL}/job/status', 
+                endpoint,
                 headers=headers, 
                 timeout=30)
+            elapsed_ms = (time.time() - start_time) * 1000
+            logger.debug(
+                f"API Call: [GET] {endpoint} | Status: {response.status_code} | Time: {elapsed_ms:.2f}ms")
             response.raise_for_status()
             if response.json()["success"]:
 

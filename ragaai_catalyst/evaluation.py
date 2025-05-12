@@ -1,12 +1,27 @@
 import os
+import time
 import requests
 import pandas as pd
 import io
 from .ragaai_catalyst import RagaAICatalyst
 import logging
 import json
+from logging.handlers import RotatingFileHandler
 
-logger = logging.getLogger(__name__)
+logging.basicConfig(
+    level=logging.DEBUG,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.StreamHandler(),
+        RotatingFileHandler(
+            os.path.join(log_dir, "evaluation.log"),
+            maxBytes=max_file_size,
+            backupCount=backup_count
+        )
+    ]
+)
+logger = logging.getLogger("evaluation")
+
 
 # Job status constants
 JOB_STATUS_FAILED = "failed"
@@ -24,13 +39,18 @@ class Evaluation:
         self.num_projects=99999
 
         try:
+            start_time = time.time()
+            endpoint = f"{self.base_url}/v2/llm/projects?size={self.num_projects}"
             response = requests.get(
-                f"{self.base_url}/v2/llm/projects?size={self.num_projects}",
+                endpoint,
                 headers={
                     "Authorization": f'Bearer {os.getenv("RAGAAI_CATALYST_TOKEN")}',
                 },
                 timeout=self.timeout,
             )
+            elapsed_ms = (time.time() - start_time) * 1000
+            logger.debug(
+                f"API Call: [GET] {endpoint} | Status: {response.status_code} | Time: {elapsed_ms:.2f}ms") 
             response.raise_for_status()
             logger.debug("Projects list retrieved successfully")
 
@@ -56,13 +76,17 @@ class Evaluation:
                 "X-Project-Id": str(self.project_id),
             }
             json_data = {"size": 12, "page": "0", "projectId": str(self.project_id), "search": ""}
+            start_time = time.time()
+            endpoint = f"{self.base_url}/v2/llm/dataset"
             response = requests.post(
-                f"{self.base_url}/v2/llm/dataset",
+                endpoint,
                 headers=headers,
                 json=json_data,
                 timeout=self.timeout,
             )
-            
+            elapsed_ms = (time.time() - start_time) * 1000  
+            logger.debug(
+                f"API Call: [POST] {endpoint} | Status: {response.status_code} | Time: {elapsed_ms:.2f}ms") 
             response.raise_for_status()
             datasets_content = response.json()["data"]["content"]
             dataset_list = [dataset["name"] for dataset in datasets_content]
@@ -110,12 +134,18 @@ class Evaluation:
                 "X-Project-Id": str(self.project_id),
             }
             json_data = {"size": 12, "page": "0", "projectId": str(self.project_id), "search": ""}
+            start_time = time.time()
+            endpoint = f"{self.base_url}/v2/llm/dataset"
             response = requests.post(
-                f"{self.base_url}/v2/llm/dataset",
+                endpoint,
                 headers=headers,
                 json=json_data,
                 timeout=self.timeout,
             )
+            elapsed_ms = (time.time() - start_time) * 1000
+            logger.debug(
+                f"API Call: [POST] {endpoint} | Status: {response.status_code} | Time: {elapsed_ms:.2f}ms")
+            response.raise_for_status()
             
             response.raise_for_status()
             datasets_content = response.json()["data"]["content"]
@@ -145,11 +175,16 @@ class Evaluation:
             "rowFilterList": []
         }
         try:
+            start_time = time.time()
+            endpoint = f"{self.base_url}/v1/llm/docs"
             response = requests.post(
-                f'{self.base_url}/v1/llm/docs', 
+                endpoint,
                 headers=headers,
                 json=data,
                 timeout=self.timeout)
+            elapsed_ms = (time.time() - start_time) * 1000
+            logger.debug(
+                f"API Call: [POST] {endpoint} | Status: {response.status_code} | Time: {elapsed_ms:.2f}ms")
             response.raise_for_status()
             if response.status_code == 200:
                 return response.json()["data"]["columns"]
@@ -226,10 +261,15 @@ class Evaluation:
             'X-Project-Id': str(self.project_id),
         }
         try:
+            start_time = time.time()
+            endpoint = f"{self.base_url}/v1/llm/llm-metrics"
             response = requests.get(
-                f'{self.base_url}/v1/llm/llm-metrics', 
+                endpoint,
                 headers=headers,
                 timeout=self.timeout)
+            elapsed_ms = (time.time() - start_time) * 1000
+            logger.debug(
+                f"API Call: [GET] {endpoint} | Status: {response.status_code} | Time: {elapsed_ms:.2f}ms")
             response.raise_for_status()
             metrics_schema = [metric for metric in response.json()["data"]["metrics"]]
             return metrics_schema
@@ -285,11 +325,16 @@ class Evaluation:
             'X-Project-Id': str(self.project_id),
         }
         try:
+            start_time = time.time()
+            endpoint = f"{self.base_url}/v2/llm/dataset/{str(self.dataset_id)}?initialCols=0"
             response = requests.get(
-                f"{self.base_url}/v2/llm/dataset/{str(self.dataset_id)}?initialCols=0",
+                endpoint,
                 headers=headers,
                 timeout=self.timeout,
             )
+            elapsed_ms = (time.time() - start_time) * 1000
+            logger.debug(
+                f"API Call: [GET] {endpoint} | Status: {response.status_code} | Time: {elapsed_ms:.2f}ms")
             response.raise_for_status()
             dataset_columns = response.json()["data"]["datasetColumnsResponses"]
             dataset_columns = [item["displayName"] for item in dataset_columns]
@@ -334,12 +379,17 @@ class Evaluation:
         }
         metric_schema_mapping = self._update_base_json(metrics)
         try:
+            start_time = time.time()
+            endpoint = f"{self.base_url}/v2/llm/metric-evaluation"
             response = requests.post(
-                f'{self.base_url}/v2/llm/metric-evaluation',
+                endpoint,
                 headers=headers, 
                 json=metric_schema_mapping,
                 timeout=self.timeout
                 )
+            elapsed_ms = (time.time() - start_time) * 1000
+            logger.debug(
+                f"API Call: [POST] {endpoint} | Status: {response.status_code} | Time: {elapsed_ms:.2f}ms")
             if response.status_code == 400:
                 raise ValueError(response.json()["message"])
             response.raise_for_status()
@@ -380,12 +430,17 @@ class Evaluation:
         })
         
         try:
+            start_time = time.time()
+            endpoint = f"{self.base_url}/v2/llm/metric-evaluation-rerun"
             response = requests.request(
                 "POST", 
-                f'{self.base_url}/v2/llm/metric-evaluation-rerun', 
+                endpoint, 
                 headers=headers, 
                 data=payload, 
                 timeout=self.timeout)
+            elapsed_ms = (time.time() - start_time) * 1000
+            logger.debug(
+                f"API Call: [POST] {endpoint} | Status: {response.status_code} | Time: {elapsed_ms:.2f}ms")
             if response.status_code == 400:
                 raise ValueError(response.json()["message"])
             response.raise_for_status()
@@ -411,10 +466,15 @@ class Evaluation:
             'X-Project-Id': str(self.project_id),
         }
         try:
+            start_time = time.time()
+            endpoint = f"{self.base_url}/job/status"
             response = requests.get(
-                f'{self.base_url}/job/status', 
+                endpoint, 
                 headers=headers, 
                 timeout=self.timeout)
+            elapsed_ms = (time.time() - start_time) * 1000
+            logger.debug(
+                f"API Call: [GET] {endpoint} | Status: {response.status_code} | Time: {elapsed_ms:.2f}ms")
             response.raise_for_status()
             if response.json()["success"]:
                 status_json = [item["status"] for item in response.json()["data"]["content"] if item["id"]==self.jobId][0]
@@ -467,11 +527,16 @@ class Evaluation:
                 "export": True
                 }
             try:    
+                start_time = time.time()
+                endpoint = f"{self.base_url}/v1/llm/docs"
                 response = requests.post(
-                    f'{self.base_url}/v1/llm/docs', 
+                    endpoint, 
                     headers=headers, 
                     json=data,
                     timeout=self.timeout)
+                elapsed_ms = (time.time() - start_time) * 1000
+                logger.debug(
+                    f"API Call: [POST] {endpoint} | Status: {response.status_code} | Time: {elapsed_ms:.2f}ms")
                 response.raise_for_status()
                 return response.json()
             except requests.exceptions.HTTPError as http_err:

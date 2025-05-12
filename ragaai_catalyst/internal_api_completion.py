@@ -4,8 +4,22 @@ import subprocess
 import logging
 import traceback
 import pandas as pd
+import time
+from logging.handlers import RotatingFileHandler
 
-logger = logging.getLogger(__name__)
+logging.basicConfig(
+    level=logging.DEBUG,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.StreamHandler(),
+        RotatingFileHandler(
+            os.path.join(log_dir, "internal_api_completion.log"),
+            maxBytes=max_file_size,
+            backupCount=backup_count
+        )
+    ]
+)
+logger = logging.getLogger("internal_api_completion")
 
 def api_completion(messages, model_config, kwargs):
     attempts = 0
@@ -23,7 +37,12 @@ def api_completion(messages, model_config, kwargs):
             # 'Wd-PCA-Feature-Key':f'your_feature_key, $(whoami)'
         }
         try:
+            start_time = time.time()
             response = requests.request("POST", internal_llm_proxy, headers=headers, data=payload)
+            elapsed_ms = (time.time() - start_time) * 1000
+            logger.debug(
+                f"API Call: [POST] {internal_llm_proxy} | Status: {response.status_code} | Time: {elapsed_ms:.2f}ms")
+            response.raise_for_status()
             if model_config.get('log_level','')=='debug':
                 logger.info(f'Model response Job ID {job_id} {response.text}')
             if response.status_code!=200:

@@ -5,8 +5,21 @@ import pandas as pd
 from .utils import response_checker
 from .ragaai_catalyst import RagaAICatalyst
 
-logging.basicConfig(level=logging.DEBUG)
-logger = logging.getLogger(__name__)
+from logging.handlers import RotatingFileHandler
+
+logging.basicConfig(
+    level=logging.DEBUG,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.StreamHandler(),
+        RotatingFileHandler(
+            os.path.join(log_dir, "experiment.log"),
+            maxBytes=max_file_size,
+            backupCount=backup_count
+        )
+    ]
+)
+logger = logging.getLogger("experiment")
 
 get_token = RagaAICatalyst.get_token
 
@@ -48,12 +61,17 @@ class Experiment:
             "Content-Type": "application/json",
             "Authorization": f'Bearer {os.getenv("RAGAAI_CATALYST_TOKEN")}',
         }
+        start_time = time.time()
+        endpoint = f"{RagaAICatalyst.BASE_URL}/projects"
         response = requests.get(
-            f"{RagaAICatalyst.BASE_URL}/projects",
+            endpoint,
             params=params,
             headers=headers,
             timeout=10,
         )
+        elapsed_ms = (time.time() - start_time) * 1000
+        logger.debug(
+            f"API Call: [GET] {endpoint} | Status: {response.status_code} | Time: {elapsed_ms:.2f}ms")
         response.raise_for_status()
         # logger.debug("Projects list retrieved successfully")
         experiment_list = [exp["name"] for project in response.json()["data"]["content"] if project["name"] == self.project_name for exp in project["experiments"]]
@@ -84,22 +102,31 @@ class Experiment:
             # "accept":"application/json, text/plain, */*",
             "Authorization": f'Bearer {os.getenv("RAGAAI_CATALYST_TOKEN")}',
         }
-        response = requests.get(
-            f"{RagaAICatalyst.BASE_URL}/v1/llm/sub-datasets?projectName={project_name}",
-            headers=headers,
-            timeout=self.TIMEOUT,
-        )
-        response.raise_for_status()
-        logger.debug("dataset list retrieved successfully")
-        dataset_list = [
-            item['name'] for item in response.json()['data']['content']
-        ]
-        exists = dataset_name in dataset_list
-        if exists:
-            logger.info(f"dataset '{dataset_name}' exists.")
-        else:
-            logger.info(f"dataset '{dataset_name}' does not exist.")
-        return exists
+        try:
+            start_time = time.time()
+            endpoint = f"{RagaAICatalyst.BASE_URL}/v1/llm/sub-datasets?projectName={project_name}"
+            response = requests.get(
+                endpoint,
+                headers=headers,
+                    timeout=self.TIMEOUT,
+            )
+            elapsed_ms = (time.time() - start_time) * 1000
+            logger.debug(
+                f"API Call: [GET] {endpoint} | Status: {response.status_code} | Time: {elapsed_ms:.2f}ms")
+            response.raise_for_status()
+            logger.debug("dataset list retrieved successfully")
+            dataset_list = [
+                item['name'] for item in response.json()['data']['content']
+            ]
+            exists = dataset_name in dataset_list
+            if exists:
+                logger.info(f"dataset '{dataset_name}' exists.")
+            else:
+                logger.info(f"dataset '{dataset_name}' does not exist.")
+            return exists
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Failed to retrieve dataset list: {e}")
+            raise
 
 
 
@@ -115,20 +142,26 @@ class Experiment:
             "Content-Type": "application/json",
             "Authorization": f'Bearer {os.getenv("RAGAAI_CATALYST_TOKEN")}',
         }
-        response = requests.get(
-            f"{RagaAICatalyst.BASE_URL}/projects",
-            params=params,
-            headers=headers,
-            timeout=self.TIMEOUT,
-        )
-        response.raise_for_status()
-        logger.debug("Projects list retrieved successfully")
-        project_list = [
-            project["name"] for project in response.json()["data"]["content"]
-        ]
-        
-        # TODO: 2. Check if the given project_name exists
-        # TODO: 3. Return bool (True / False output)
+        try:
+            start_time = time.time()
+            endpoint = f"{RagaAICatalyst.BASE_URL}/projects"
+            response = requests.get(
+                endpoint,
+                params=params,
+                headers=headers,
+                timeout=self.TIMEOUT,
+            )
+            elapsed_ms = (time.time() - start_time) * 1000
+            logger.debug(
+                f"API Call: [GET] {endpoint} | Status: {response.status_code} | Time: {elapsed_ms:.2f}ms")
+            response.raise_for_status()
+            logger.debug("Projects list retrieved successfully")
+            project_list = [
+                project["name"] for project in response.json()["data"]["content"]
+            ]
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Failed to retrieve projects list: {e}")
+            raise        
         exists = project_name in project_list
         if exists:
             logger.info(f"Project '{project_name}' exists.")
@@ -218,12 +251,22 @@ class Experiment:
         logger.debug(
             f"Preparing to add metrics for '{self.experiment_name}': {metrics}"
         )
-        response = requests.post(
-            f"{Experiment.BASE_URL}/v1/llm/experiment",
-            headers=headers,
-            json=json_data,
-            timeout=Experiment.TIMEOUT,
-        )
+        try:
+            start_time = time.time()
+            endpoint = f"{Experiment.BASE_URL}/v1/llm/experiment"
+            response = requests.post(
+                endpoint,
+                headers=headers,
+                json=json_data,
+                timeout=Experiment.TIMEOUT,
+            )
+            elapsed_ms = (time.time() - start_time) * 1000
+            logger.debug(
+                f"API Call: [POST] {endpoint} | Status: {response.status_code} | Time: {elapsed_ms:.2f}ms")
+            response.raise_for_status()
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Failed to add metrics: {e}")
+            raise
 
         status_code = response.status_code
         if status_code == 200:
@@ -245,12 +288,22 @@ class Experiment:
                 "Authorization": f'Bearer {os.getenv("RAGAAI_CATALYST_TOKEN")}',
                 "X-Project-Name": self.project_name,
             }
-            response = requests.post(
-                f"{Experiment.BASE_URL}/v1/llm/experiment",
-                headers=headers,
-                json=json_data,
-                timeout=Experiment.TIMEOUT,
-            )
+            try:
+                start_time = time.time()
+                endpoint = f"{Experiment.BASE_URL}/v1/llm/experiment"
+                response = requests.post(
+                    endpoint,
+                    headers=headers,
+                    json=json_data,
+                    timeout=Experiment.TIMEOUT,
+                )
+                elapsed_ms = (time.time() - start_time) * 1000
+                logger.debug(
+                    f"API Call: [POST] {endpoint} | Status: {response.status_code} | Time: {elapsed_ms:.2f}ms")
+                response.raise_for_status()
+            except requests.exceptions.RequestException as e:
+                logger.error(f"Failed to add metrics: {e}")
+                raise
             status_code = response.status_code
             if status_code == 200:
                 test_response = response.json()
