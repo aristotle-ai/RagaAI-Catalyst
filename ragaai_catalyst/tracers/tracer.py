@@ -403,29 +403,103 @@ class Tracer(AgenticTracing):
             raise TypeError("masking_func must be a callable")
 
         def recursive_mask_values(obj, parent_key=None):
-            """Apply masking to all values in nested structure."""
-            try:
-                if isinstance(obj, dict):
-                    return {k: recursive_mask_values(v, k) for k, v in obj.items()}
-                elif isinstance(obj, list):
-                    return [recursive_mask_values(item, parent_key) for item in obj]
-                elif isinstance(obj, str):
-                    # List of keys that should NOT be masked
-                    excluded_keys = {
-                        'start_time', 'end_time', 'name', 'id', 
-                        'hash_id', 'parent_id', 'source_hash_id',
-                        'cost', 'type', 'feedback', 'error', 'ctx','telemetry.sdk.version',
-                        'telemetry.sdk.language','service.name'
-                    }
-                    # Apply masking only if the key is NOT in the excluded list
-                    if parent_key and parent_key.lower() not in excluded_keys:
-                        return masking_func(obj)
-                    return obj
-                else:
-                    return obj
-            except Exception as e:
-                logger.error(f"Error masking value: {e}")
+            """Apply masking to all values in nested structure using an iterative approach."""
+            # Cache of excluded keys for faster lookup
+            excluded_keys = {
+                'start_time', 'end_time', 'name', 'id', 
+                'hash_id', 'parent_id', 'source_hash_id',
+                'cost', 'type', 'feedback', 'error', 'ctx', 'telemetry.sdk.version',
+                'telemetry.sdk.language', 'service.name'
+            }
+            
+            # If input is a primitive type, handle directly
+            if obj is None or isinstance(obj, (int, float, bool)):
                 return obj
+            
+            # For strings, we need the parent key which isn't available in this context
+            if isinstance(obj, str):
+                return obj  # Can't mask without parent_key information
+            
+            # Create a working copy of the object to avoid modifying the original
+            if isinstance(obj, dict):
+                result = {}
+            elif isinstance(obj, list):
+                result = [None] * len(obj)
+            else:
+                return obj  # Handle other non-container types
+            
+            # Stack of (object, parent_key, result_container, index_or_key)
+            # - object: current object to process
+            # - parent_key: key of the parent dictionary
+            # - result_container: where to store the processed result
+            # - index_or_key: where in result_container to store the processed item
+            stack = [(obj, None, None, None)]
+            
+            while stack:
+                current, parent_key, result_container, index_or_key = stack.pop()
+                
+                # Handle primitive types
+                if current is None or isinstance(current, (int, float, bool)):
+                    if result_container is not None:
+                        if isinstance(result_container, dict):
+                            result_container[index_or_key] = current
+                        else:  # list
+                            result_container[index_or_key] = current
+                    continue
+                
+                # Handle strings
+                if isinstance(current, str):
+                    processed = current
+                    if parent_key and parent_key.lower() not in excluded_keys:
+                        try:
+                            processed = masking_func(current)
+                        except Exception as e:
+                            logger.error(f"Error masking value: {e}")
+                    
+                    if result_container is not None:
+                        if isinstance(result_container, dict):
+                            result_container[index_or_key] = processed
+                        else:  # list
+                            result_container[index_or_key] = processed
+                    continue
+                
+                # Handle dictionaries
+                if isinstance(current, dict):
+                    new_dict = {}
+                    
+                    # Set the result in the parent container
+                    if result_container is not None:
+                        if isinstance(result_container, dict):
+                            result_container[index_or_key] = new_dict
+                        else:  # list
+                            result_container[index_or_key] = new_dict
+                    else:
+                        result = new_dict  # This is the root object
+                    
+                    # Add all items to the stack
+                    for k, v in current.items():
+                        stack.append((v, k, new_dict, k))
+                    continue
+                
+                # Handle lists
+                if isinstance(current, list):
+                    new_list = [None] * len(current)
+                    
+                    # Set the result in the parent container
+                    if result_container is not None:
+                        if isinstance(result_container, dict):
+                            result_container[index_or_key] = new_list
+                        else:  # list
+                            result_container[index_or_key] = new_list
+                    else:
+                        result = new_list  # This is the root object
+                    
+                    # Add all items to the stack
+                    for i, item in enumerate(reversed(current)):  # Reverse to maintain original order
+                        stack.append((item, parent_key, new_list, len(current) - i - 1))
+                    continue
+            
+            return result
 
         def file_post_processor(original_trace_json_path: os.PathLike) -> os.PathLike:
             original_path = Path(original_trace_json_path)
