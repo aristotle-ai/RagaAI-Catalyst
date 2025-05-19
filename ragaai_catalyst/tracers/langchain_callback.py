@@ -2,7 +2,10 @@ from typing import Any, Dict, List, Optional, Union, Sequence
 
 import attr
 from langchain.callbacks.base import BaseCallbackHandler
-from langchain.schema import LLMResult, AgentAction, AgentFinish, BaseMessage
+# from langchain.schema import LLMResult, AgentAction, AgentFinish, BaseMessage
+from langchain_core.outputs import LLMResult
+from langchain_core.agents import AgentAction, AgentFinish
+from langchain_core.messages import BaseMessage
 from datetime import datetime
 import json
 import os
@@ -25,6 +28,7 @@ class LangchainTracer(BaseCallbackHandler):
     An enhanced callback handler for LangChain that traces all actions and saves them to a JSON file.
     Includes improved error handling, async support, and configuration options.
     """
+    
 
     def __init__(
         self,
