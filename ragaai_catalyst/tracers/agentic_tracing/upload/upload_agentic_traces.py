@@ -184,12 +184,7 @@ class UploadAgenticTraces:
                         "spanType": child["type"],
                     })
             else:
-                datasetSpans.append({
-                            "spanId": child["id"],
-                            "spanName": child["name"],
-                            "spanHash": child["hash_id"],
-                            "spanType": child["type"],
-                        })
+                # For agent-type children, we'll let the recursive call handle adding them
                 self._get_agent_dataset_spans(child, datasetSpans)
         return datasetSpans
         
