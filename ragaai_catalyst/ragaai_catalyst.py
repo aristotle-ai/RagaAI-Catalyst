@@ -1,14 +1,17 @@
-import os
 import logging
-import requests
-import time
-import threading
-from typing import Dict, Optional, Union
+import os
 import re
+import threading
+import time
+from typing import Dict, Optional, Union
+
+import requests
+
 logger = logging.getLogger("RagaAICatalyst")
 logging_level = (
     logger.setLevel(logging.DEBUG) if os.getenv("DEBUG") == "1" else logging.INFO
 )
+
 
 class RagaAICatalyst:
     BASE_URL = None
@@ -49,15 +52,15 @@ class RagaAICatalyst:
                 "RAGAAI_CATALYST_ACCESS_KEY and RAGAAI_CATALYST_SECRET_KEY environment variables must be set"
             )
 
-        self.access_key, self.secret_key = self._set_access_key_secret_key(
-            access_key, secret_key
+        RagaAICatalyst.access_key, RagaAICatalyst.secret_key = (
+            self._set_access_key_secret_key(access_key, secret_key)
         )
 
         # Initialize token management
-        self._token_expiry = None
-        self._token_refresh_lock = threading.Lock()
-        self._refresh_thread = None
-        
+        RagaAICatalyst._token_expiry = None
+        RagaAICatalyst._token_refresh_lock = threading.Lock()
+        RagaAICatalyst._refresh_thread = None
+
         # Set token expiration time (convert hours to seconds)
         RagaAICatalyst.TOKEN_EXPIRY_TIME = token_expiry_time * 60 * 60
 
@@ -72,16 +75,16 @@ class RagaAICatalyst:
         if base_url:
             RagaAICatalyst.BASE_URL = self._normalize_base_url(base_url)
             try:
-                #set the os.environ["RAGAAI_CATALYST_BASE_URL"] before getting the token as it is used in the get_token method
+                # set the os.environ["RAGAAI_CATALYST_BASE_URL"] before getting the token as it is used in the get_token method
                 os.environ["RAGAAI_CATALYST_BASE_URL"] = RagaAICatalyst.BASE_URL
-                self.get_token()
+                RagaAICatalyst.get_token(force_refresh=True)
             except requests.exceptions.RequestException:
                 raise ConnectionError(
                     "The provided base_url is not accessible. Please re-check the base_url."
                 )
         else:
             # Get the token from the server
-            self.get_token()
+            RagaAICatalyst.get_token(force_refresh=True)
 
         # Set the API keys, if  available
         if self.api_keys:
@@ -89,9 +92,11 @@ class RagaAICatalyst:
 
     @staticmethod
     def _normalize_base_url(url):
-        url = re.sub(r'(?<!:)//+', '/', url)  # Ignore the `://` part of URLs and remove extra // if any
-        url = url.rstrip("/") # To remove trailing slashes
-        if not url.endswith("/api"): # To ensure it ends with /api
+        url = re.sub(
+            r"(?<!:)//+", "/", url
+        )  # Ignore the `://` part of URLs and remove extra // if any
+        url = url.rstrip("/")  # To remove trailing slashes
+        if not url.endswith("/api"):  # To ensure it ends with /api
             url = f"{url}/api"
         return url
 
@@ -141,7 +146,8 @@ class RagaAICatalyst:
         )
         elapsed_ms = (time.time() - start_time) * 1000
         logger.debug(
-            f"API Call: [POST] {endpoint} | Status: {response.status_code} | Time: {elapsed_ms:.2f}ms")
+            f"API Call: [POST] {endpoint} | Status: {response.status_code} | Time: {elapsed_ms:.2f}ms"
+        )
         if response.status_code == 200:
             print("API keys uploaded successfully")
         else:
@@ -158,43 +164,58 @@ class RagaAICatalyst:
     # Token expiration time is now configurable via the token_expiry_time parameter
     # Default is 6 hours, but can be changed to 23 hours or any other value
 
-    def _get_credentials(self) -> tuple[str, str]:
+    @staticmethod
+    def _get_credentials() -> tuple[str, str]:
         """Get access key and secret key from instance or environment."""
-        access_key = self.access_key or os.getenv("RAGAAI_CATALYST_ACCESS_KEY")
-        secret_key = self.secret_key or os.getenv("RAGAAI_CATALYST_SECRET_KEY")
+        access_key = RagaAICatalyst.access_key or os.getenv(
+            "RAGAAI_CATALYST_ACCESS_KEY"
+        )
+        secret_key = RagaAICatalyst.secret_key or os.getenv(
+            "RAGAAI_CATALYST_SECRET_KEY"
+        )
         return access_key, secret_key
 
-    def _refresh_token_async(self):
+    @staticmethod
+    def _refresh_token_async():
         """Refresh token in background thread."""
         try:
-            self.get_token(force_refresh=True)
+            RagaAICatalyst.get_token(force_refresh=True)
         except Exception as e:
             logger.error(f"Background token refresh failed: {str(e)}")
-            
-    def _schedule_token_refresh(self):
+
+    @staticmethod
+    def _schedule_token_refresh():
         """Schedule a token refresh to happen 20 seconds before expiration."""
-        if not self._token_expiry:
+        if not RagaAICatalyst._token_expiry:
             return
-            
+
         # Calculate when to refresh (20 seconds before expiration)
         current_time = time.time()
-        refresh_buffer = min(20, RagaAICatalyst.TOKEN_EXPIRY_TIME * 0.05)  # 20 seconds or 5% of expiry time, whichever is smaller
-        time_until_refresh = max(self._token_expiry - current_time - refresh_buffer, 1)  # At least 1 second
-        
+        refresh_buffer = min(
+            20, RagaAICatalyst.TOKEN_EXPIRY_TIME * 0.05
+        )  # 20 seconds or 5% of expiry time, whichever is smaller
+        time_until_refresh = max(
+            RagaAICatalyst._token_expiry - current_time - refresh_buffer, 1
+        )  # At least 1 second
+
         def delayed_refresh():
             # Sleep until it's time to refresh
             time.sleep(time_until_refresh)
-            logger.debug(f"Scheduled token refresh triggered")
-            self._refresh_token_async()
-            
+            logger.debug("Scheduled token refresh triggered")
+            RagaAICatalyst._refresh_token_async()
+
         # Start a new thread for the delayed refresh
-        if not self._refresh_thread or not self._refresh_thread.is_alive():
-            self._refresh_thread = threading.Thread(target=delayed_refresh)
-            self._refresh_thread.daemon = True
-            self._refresh_thread.start()
+        if (
+            not RagaAICatalyst._refresh_thread
+            or not RagaAICatalyst._refresh_thread.is_alive()
+        ):
+            RagaAICatalyst._refresh_thread = threading.Thread(target=delayed_refresh)
+            RagaAICatalyst._refresh_thread.daemon = True
+            RagaAICatalyst._refresh_thread.start()
             logger.debug(f"Token refresh scheduled in {time_until_refresh:.1f} seconds")
 
-    def get_token(self, force_refresh=False) -> Union[str, None]:
+    @staticmethod
+    def get_token(force_refresh=True) -> Union[str, None]:
         """
         Retrieves or refreshes a token using the provided credentials.
 
@@ -205,15 +226,20 @@ class RagaAICatalyst:
             - A string representing the token if successful.
             - None if credentials are not set or if there is an error.
         """
-        with self._token_refresh_lock:
+        with RagaAICatalyst._token_refresh_lock:
             current_token = os.getenv("RAGAAI_CATALYST_TOKEN")
             current_time = time.time()
 
             # Check if we need to refresh the token
-            if not force_refresh and current_token and self._token_expiry and current_time < self._token_expiry:
+            if (
+                not force_refresh
+                and current_token
+                and RagaAICatalyst._token_expiry
+                and current_time < RagaAICatalyst._token_expiry
+            ):
                 return current_token
 
-            access_key, secret_key = self._get_credentials()
+            access_key, secret_key = RagaAICatalyst._get_credentials()
             if not access_key or not secret_key:
                 logger.error("Access key or secret key is not set")
                 return None
@@ -222,16 +248,17 @@ class RagaAICatalyst:
             json_data = {"accessKey": access_key, "secretKey": secret_key}
 
             start_time = time.time()
-            endpoint = f"{self.BASE_URL}/token"
+            endpoint = f"{RagaAICatalyst.BASE_URL}/token"
             response = requests.post(
                 endpoint,
                 headers=headers,
                 json=json_data,
-                timeout=self.TIMEOUT,
+                timeout=RagaAICatalyst.TIMEOUT,
             )
             elapsed_ms = (time.time() - start_time) * 1000
             logger.debug(
-                f"API Call: [POST] {endpoint} | Status: {response.status_code} | Time: {elapsed_ms:.2f}ms")
+                f"API Call: [POST] {endpoint} | Status: {response.status_code} | Time: {elapsed_ms:.2f}ms"
+            )
 
             # Handle specific status codes before raising an error
             if response.status_code == 400:
@@ -254,12 +281,16 @@ class RagaAICatalyst:
             token = token_response.get("data", {}).get("token")
             if token:
                 os.environ["RAGAAI_CATALYST_TOKEN"] = token
-                self._token_expiry = time.time() + RagaAICatalyst.TOKEN_EXPIRY_TIME
-                logger.debug(f"Token refreshed successfully. Next refresh in {RagaAICatalyst.TOKEN_EXPIRY_TIME/3600:.1f} hours")
-                
+                RagaAICatalyst._token_expiry = (
+                    time.time() + RagaAICatalyst.TOKEN_EXPIRY_TIME
+                )
+                logger.debug(
+                    f"Token refreshed successfully. Next refresh in {RagaAICatalyst.TOKEN_EXPIRY_TIME / 3600:.1f} hours"
+                )
+
                 # Schedule token refresh 20 seconds before expiration
-                self._schedule_token_refresh()
-                
+                RagaAICatalyst._schedule_token_refresh()
+
                 return token
             else:
                 logger.error("Token(s) not set")
@@ -286,14 +317,16 @@ class RagaAICatalyst:
         if not self._token_expiry or current_time >= self._token_expiry:
             logger.info("Token expired, refreshing synchronously")
             return self.get_token(force_refresh=True)
-            
+
         # Case 3: Token valid but approaching expiry (less than 10% of lifetime remaining)
         # Start background refresh but return current token
         token_remaining_time = self._token_expiry - current_time
         if token_remaining_time < (RagaAICatalyst.TOKEN_EXPIRY_TIME * 0.1):
             if not self._refresh_thread or not self._refresh_thread.is_alive():
                 logger.info("Token approaching expiry, starting background refresh")
-                self._refresh_thread = threading.Thread(target=self._refresh_token_async)
+                self._refresh_thread = threading.Thread(
+                    target=self._refresh_token_async
+                )
                 self._refresh_thread.daemon = True
                 self._refresh_thread.start()
 
@@ -319,14 +352,11 @@ class RagaAICatalyst:
             headers = self.get_auth_header()
             start_time = time.time()
             endpoint = f"{RagaAICatalyst.BASE_URL}/v2/llm/usecase"
-            response = requests.get(
-                endpoint,
-                headers=headers,
-                timeout=self.TIMEOUT
-            )
+            response = requests.get(endpoint, headers=headers, timeout=self.TIMEOUT)
             elapsed_ms = (time.time() - start_time) * 1000
             logger.debug(
-                f"API Call: [GET] {endpoint} | Status: {response.status_code} | Time: {elapsed_ms:.2f}ms")
+                f"API Call: [GET] {endpoint} | Status: {response.status_code} | Time: {elapsed_ms:.2f}ms"
+            )
             response.raise_for_status()  # Use raise_for_status to handle HTTP errors
             usecase = response.json()["data"]["usecase"]
             return usecase
@@ -349,16 +379,18 @@ class RagaAICatalyst:
         # Check if the project already exists
         existing_projects = self.list_projects()
         if project_name in existing_projects:
-            raise ValueError(f"Project name '{project_name}' already exists. Please choose a different name.")
+            raise ValueError(
+                f"Project name '{project_name}' already exists. Please choose a different name."
+            )
 
         usecase_list = self.project_use_cases()
         if usecase not in usecase_list:
             raise ValueError(f"Select a valid usecase from {usecase_list}")
-        
+
         json_data = {"name": project_name, "type": type, "usecase": usecase}
         headers = {
             "Content-Type": "application/json",
-            "Authorization": f'Bearer {os.getenv("RAGAAI_CATALYST_TOKEN")}',
+            "Authorization": f"Bearer {os.getenv('RAGAAI_CATALYST_TOKEN')}",
         }
         try:
             start_time = time.time()
@@ -371,19 +403,20 @@ class RagaAICatalyst:
             )
             elapsed_ms = (time.time() - start_time) * 1000
             logger.debug(
-                f"API Call: [POST] {endpoint} | Status: {response.status_code} | Time: {elapsed_ms:.2f}ms")
+                f"API Call: [POST] {endpoint} | Status: {response.status_code} | Time: {elapsed_ms:.2f}ms"
+            )
             response.raise_for_status()
             print(
                 f"Project Created Successfully with name {response.json()['data']['name']} & usecase {usecase}"
             )
-            return f'Project Created Successfully with name {response.json()["data"]["name"]} & usecase {usecase}'
+            return f"Project Created Successfully with name {response.json()['data']['name']} & usecase {usecase}"
 
         except requests.exceptions.HTTPError as http_err:
             if response.status_code == 401:
                 logger.warning("Received 401 error. Attempting to refresh token.")
-                self.get_token()
+                RagaAICatalyst.get_token(force_refresh=True)
                 headers["Authorization"] = (
-                    f'Bearer {os.getenv("RAGAAI_CATALYST_TOKEN")}'
+                    f"Bearer {os.getenv('RAGAAI_CATALYST_TOKEN')}"
                 )
                 try:
                     response = requests.post(
@@ -397,7 +430,7 @@ class RagaAICatalyst:
                         "Project Created Successfully with name %s after token refresh",
                         response.json()["data"]["name"],
                     )
-                    return f'Project Created Successfully with name {response.json()["data"]["name"]}'
+                    return f"Project Created Successfully with name {response.json()['data']['name']}"
                 except requests.exceptions.HTTPError as refresh_http_err:
                     logger.error(
                         "Failed to create project after token refresh: %s",
@@ -432,7 +465,7 @@ class RagaAICatalyst:
             list: A list of project names retrieved successfully.
         """
         headers = {
-            "Authorization": f'Bearer {os.getenv("RAGAAI_CATALYST_TOKEN")}',
+            "Authorization": f"Bearer {os.getenv('RAGAAI_CATALYST_TOKEN')}",
         }
         try:
             start_time = time.time()
@@ -444,7 +477,8 @@ class RagaAICatalyst:
             )
             elapsed_ms = (time.time() - start_time) * 1000
             logger.debug(
-                f"API Call: [GET] {endpoint} | Status: {response.status_code} | Time: {elapsed_ms:.2f}ms")
+                f"API Call: [GET] {endpoint} | Status: {response.status_code} | Time: {elapsed_ms:.2f}ms"
+            )
             response.raise_for_status()
             logger.debug("Projects list retrieved successfully")
 
@@ -456,9 +490,9 @@ class RagaAICatalyst:
         except requests.exceptions.HTTPError as http_err:
             if response.status_code == 401:
                 logger.warning("Received 401 error. Attempting to refresh token.")
-                self.get_token()
+                RagaAICatalyst.get_token(force_refresh=True)
                 headers["Authorization"] = (
-                    f'Bearer {os.getenv("RAGAAI_CATALYST_TOKEN")}'
+                    f"Bearer {os.getenv('RAGAAI_CATALYST_TOKEN')}"
                 )
                 try:
                     response = requests.get(
@@ -466,17 +500,19 @@ class RagaAICatalyst:
                         headers=headers,
                         timeout=self.TIMEOUT,
                     )
-                    response.raise_for_status()
+                    elapsed_ms = (time.time() - start_time) * 1000
                     logger.debug(
-                        "Projects list retrieved successfully after token refresh"
+                        f"API Call:[GET] {endpoint} | Status: {response.status_code} | Time: {elapsed_ms:.2f}ms"
                     )
-                    project_df = pd.DataFrame(
-                        [
-                            {"project": project["name"]}
-                            for project in response.json()["data"]["content"]
-                        ]
-                    )
-                    return project_df
+                    response.raise_for_status()
+                    logger.debug("Projects list retrieved successfully")
+
+                    project_list = [
+                        project["name"]
+                        for project in response.json()["data"]["content"]
+                    ]
+
+                    return project_list
 
                 except requests.exceptions.HTTPError as refresh_http_err:
                     logger.error(
@@ -505,7 +541,7 @@ class RagaAICatalyst:
     def list_metrics():
         headers = {
             "Content-Type": "application/json",
-            "Authorization": f'Bearer {os.getenv("RAGAAI_CATALYST_TOKEN")}',
+            "Authorization": f"Bearer {os.getenv('RAGAAI_CATALYST_TOKEN')}",
         }
         try:
             start_time = time.time()
@@ -517,7 +553,8 @@ class RagaAICatalyst:
             )
             elapsed_ms = (time.time() - start_time) * 1000
             logger.debug(
-                f"API Call: [GET] {endpoint} | Status: {response.status_code} | Time: {elapsed_ms:.2f}ms")
+                f"API Call: [GET] {endpoint} | Status: {response.status_code} | Time: {elapsed_ms:.2f}ms"
+            )
             response.raise_for_status()
             logger.debug("Metrics list retrieved successfully")
 
@@ -529,15 +566,15 @@ class RagaAICatalyst:
         except requests.exceptions.HTTPError as http_err:
             if response.status_code == 401:
                 logger.warning("Received 401 error. Attempting to refresh token.")
-                self.get_token()
+                RagaAICatalyst.get_token(force_refresh=True)
                 headers["Authorization"] = (
-                    f'Bearer {os.getenv("RAGAAI_CATALYST_TOKEN")}'
+                    f"Bearer {os.getenv('RAGAAI_CATALYST_TOKEN')}"
                 )
                 try:
                     response = requests.get(
                         f"{RagaAICatalyst.BASE_URL}/v1/llm/llm-metrics",
                         headers=headers,
-                        timeout=self.TIMEOUT,
+                        timeout=RagaAICatalyst.TIMEOUT,
                     )
                     response.raise_for_status()
                     logger.debug(
