@@ -42,16 +42,9 @@ logging.basicConfig(
 )
 logger = logging.getLogger("trace_uploader")
 
-try:
-    from ragaai_catalyst.tracers.agentic_tracing.upload.upload_agentic_traces import UploadAgenticTraces
-    from ragaai_catalyst.tracers.agentic_tracing.upload.upload_code import upload_code
-    # from ragaai_catalyst.tracers.agentic_tracing.upload.upload_trace_metric import upload_trace_metric
-    from ragaai_catalyst.tracers.agentic_tracing.utils.create_dataset_schema import create_dataset_schema_with_trace
-    from ragaai_catalyst import RagaAICatalyst
-    IMPORTS_AVAILABLE = True
-except ImportError:
-    logger.warning("RagaAI Catalyst imports not available - running in test mode")
-    IMPORTS_AVAILABLE = False
+from ragaai_catalyst.tracers.agentic_tracing.upload.upload_agentic_traces import UploadAgenticTraces
+from ragaai_catalyst.tracers.agentic_tracing.upload.upload_code import upload_code
+from ragaai_catalyst.tracers.agentic_tracing.utils.create_dataset_schema import create_dataset_schema_with_trace
 
 # Define task queue directory
 QUEUE_DIR = os.path.join(tempfile.gettempdir(), "ragaai_tasks")
@@ -123,12 +116,6 @@ def process_upload(task_id: str, filepath: str, hash_id: str, zip_path: str,
             save_task_status(result)
             return result
 
-        if not IMPORTS_AVAILABLE:
-            logger.warning(f"Test mode: Simulating processing of task {task_id}")
-            # time.sleep(2)  # Simulate work
-            result["status"] = STATUS_COMPLETED
-            save_task_status(result)
-            return result
             
         # Step 1: Create dataset schema
         logger.info(f"Creating dataset schema for {dataset_name} with base_url: {base_url} and timeout: {timeout}")
@@ -245,6 +232,8 @@ def submit_upload_task(filepath, hash_id, zip_path, project_name, project_id, da
     logger.debug(f"Task details - Project: {project_name}, Dataset: {dataset_name}, Hash: {hash_id}, Base_URL: {base_url}")
     
     # Verify the trace file exists
+    import pdb; pdb.set_trace()
+
     if not os.path.exists(filepath):
         logger.error(f"Trace file not found: {filepath}")
         return None
