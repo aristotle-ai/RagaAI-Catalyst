@@ -4,14 +4,46 @@ import requests
 import time
 from typing import Dict, Optional, Union
 import re
-logger = logging.getLogger("RagaAICatalyst")
-logging_level = (
-    logger.setLevel(logging.DEBUG) if os.getenv("DEBUG") == "1" else logging.INFO
+import tempfile
+from loguru import logger
+
+
+# Create log directory
+# log_dir = os.path.join(tempfile.gettempdir(), "ragaai_logs")
+log_dir = os.path.join("/Users/ritikagoel/workspace/add_logs_loguru/RagaAI-Catalyst/examples/crewai/scifi_writer/", "ragaai_logs")
+
+os.makedirs(log_dir, exist_ok=True)
+print(f"Log directory: {log_dir}")
+
+# Configure loguru
+log_file = os.path.join(log_dir, "ragaai_catalyst.log")
+max_file_size = "5 MB"  # 5 MB
+
+# Remove default logger and add our configured loggers
+logger.remove()  # Remove default logger
+
+# Add console logger (INFO level and above)
+logger.add(
+    lambda msg: print(msg, end=""),  # Console output
+    level="INFO",
+    format="<green>{time:YYYY-MM-DD HH:mm:ss}</green> | <level>{level: <8}</level> | <cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - <level>{message}</level>"
+)
+
+# Add file logger (DEBUG level and above)
+logger.add(
+    log_file,
+    rotation=max_file_size,
+    retention=1,
+    level="DEBUG",  # This ensures DEBUG level messages are captured
+    format="{time:YYYY-MM-DD HH:mm:ss} | {level: <8} | {name}:{function}:{line} - {message}",
+    enqueue=False,  # Uses a queue for thread-safe logging
+    backtrace=True,  # Include exception tracebacks
+    diagnose=True   # More detailed exception information
 )
 
 class RagaAICatalyst:
     BASE_URL = None
-    TIMEOUT = 10  # Default timeout in seconds
+    TIMEOUT = 10  # Default timeout in secondss
 
     def __init__(
         self,
@@ -20,6 +52,7 @@ class RagaAICatalyst:
         api_keys: Optional[Dict[str, str]] = None,
         base_url: Optional[str] = None,
     ):
+
         """
         Initializes a new instance of the RagaAICatalyst class.
 
@@ -36,14 +69,15 @@ class RagaAICatalyst:
         Returns:
             None
         """
-
+        #change raise to pass
         if not access_key or not secret_key:
             logger.error(
                 "RAGAAI_CATALYST_ACCESS_KEY and RAGAAI_CATALYST_SECRET_KEY environment variables must be set"
             )
-            raise ValueError(
+            print(
                 "RAGAAI_CATALYST_ACCESS_KEY and RAGAAI_CATALYST_SECRET_KEY environment variables must be set"
             )
+            pass
 
         self.access_key, self.secret_key = self._set_access_key_secret_key(
             access_key, secret_key
@@ -63,10 +97,12 @@ class RagaAICatalyst:
                 #set the os.environ["RAGAAI_CATALYST_BASE_URL"] before getting the token as it is used in the get_token method
                 os.environ["RAGAAI_CATALYST_BASE_URL"] = RagaAICatalyst.BASE_URL
                 self.get_token()
+            #change raise to pass
             except requests.exceptions.RequestException:
-                raise ConnectionError(
+                print(
                     "The provided base_url is not accessible. Please re-check the base_url."
                 )
+                pass
         else:
             # Get the token from the server
             self.get_token()
@@ -245,6 +281,7 @@ class RagaAICatalyst:
             str: A message indicating the success or failure of the project creation.
         """
         # Check if the project already exists
+        logger.debug(f"Checking if project '{project_name}' already exists.")
         existing_projects = self.list_projects()
         if project_name in existing_projects:
             raise ValueError(f"Project name '{project_name}' already exists. Please choose a different name.")
@@ -259,6 +296,7 @@ class RagaAICatalyst:
             "Authorization": f'Bearer {os.getenv("RAGAAI_CATALYST_TOKEN")}',
         }
         try:
+            logger.debug(f"Creating project '{project_name}' with usecase '{usecase}'.")
             start_time = time.time()
             endpoint = f"{RagaAICatalyst.BASE_URL}/v2/llm/project"
             response = requests.post(
@@ -284,12 +322,17 @@ class RagaAICatalyst:
                     f'Bearer {os.getenv("RAGAAI_CATALYST_TOKEN")}'
                 )
                 try:
+                    start_time = time.time() 
+                    endpoint = f"{RagaAICatalyst.BASE_URL}/v2/llm/project"       
                     response = requests.post(
-                        f"{RagaAICatalyst.BASE_URL}/v2/llm/project",
+                        endpoint,
                         headers=headers,
                         json=json_data,
                         timeout=self.TIMEOUT,
                     )
+                    elapsed_ms = (time.time() - start_time) * 1000
+                    logger.debug(
+                        f"API Call: [POST] {endpoint} | Status: {response.status_code} | Time: {elapsed_ms:.2f}ms") 
                     response.raise_for_status()
                     print(
                         "Project Created Successfully with name %s after token refresh",
@@ -301,20 +344,24 @@ class RagaAICatalyst:
                         "Failed to create project after token refresh: %s",
                         str(refresh_http_err),
                     )
-                    return f"Failed to create project: {response.json().get('message', 'Authentication error after token refresh')}"
+                    print(f"Failed to create project: {response.json().get('message', 'Authentication error after token refresh')}")
+                    pass
             else:
                 logger.error("Failed to create project: %s", str(http_err))
-                return f"Failed to create project: {response.json().get('message', 'Unknown error')}"
+                print(f"Failed to create project: {response.json().get('message', 'Unknown error')}")
+                pass
         except requests.exceptions.Timeout as timeout_err:
             logger.error(
                 "Request timed out while creating project: %s", str(timeout_err)
             )
-            return "Failed to create project: Request timed out"
+            print("Failed to create project: Request timed out")
+            pass
         except Exception as general_err1:
             logger.error(
                 "Unexpected error while creating project: %s", str(general_err1)
             )
-            return "An unexpected error occurred while creating the project"
+            print("An unexpected error occurred while creating the project")
+            pass
 
     def get_project_id(self, project_name):
         pass
@@ -381,20 +428,24 @@ class RagaAICatalyst:
                         "Failed to list projects after token refresh: %s",
                         str(refresh_http_err),
                     )
-                    return f"Failed to list projects: {response.json().get('message', 'Authentication error after token refresh')}"
+                    print(f"Failed to list projects: {response.json().get('message', 'Authentication error after token refresh')}")
+                    pass
             else:
                 logger.error("Failed to list projects: %s", str(http_err))
-                return f"Failed to list projects: {response.json().get('message', 'Unknown error')}"
+                print(f"Failed to list projects: {response.json().get('message', 'Unknown error')}")
+                pass
         except requests.exceptions.Timeout as timeout_err:
             logger.error(
                 "Request timed out while listing projects: %s", str(timeout_err)
             )
-            return "Failed to list projects: Request timed out"
+            print("Failed to list projects: Request timed out")
+            pass
         except Exception as general_err2:
             logger.error(
                 "Unexpected error while listing projects: %s", str(general_err2)
             )
-            return "An unexpected error occurred while listing projects"
+            print("An unexpected error occurred while listing projects")
+            pass
 
     def list_metrics(self):
         return RagaAICatalyst.list_metrics()
@@ -460,10 +511,13 @@ class RagaAICatalyst:
                         "Failed to list metrics after token refresh: %s",
                         str(refresh_http_err),
                     )
-                    return f"Failed to list metrics: {response.json().get('message', 'Authentication error after token refresh')}"
+                    print(f"Failed to list metrics: {response.json().get('message', 'Authentication error after token refresh')}")
+                    pass
             else:
                 logger.error("Failed to list metrics: %s", str(http_err))
-                return f"Failed to list metrics: {response.json().get('message', 'Unknown error')}"
+                print(f"Failed to list metrics: {response.json().get('message', 'Unknown error')}")
+                pass
         except requests.exceptions.RequestException as e:
             logger.error(f"Failed to list metrics: {e}")
+            print("Failed to list metrics: An unexpected error occurred")
             return []

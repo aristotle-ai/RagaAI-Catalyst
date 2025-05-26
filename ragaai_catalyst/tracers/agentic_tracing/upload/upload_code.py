@@ -3,11 +3,42 @@ import requests
 import json
 import os
 import time
+import tempfile
 import logging
 from ragaai_catalyst.ragaai_catalyst import RagaAICatalyst
 logger = logging.getLogger(__name__)
 from urllib.parse import urlparse, urlunparse
 import re
+from loguru import logger
+
+
+# Create log directory
+log_dir = os.path.join(tempfile.gettempdir(), "ragaai_logs")
+os.makedirs(log_dir, exist_ok=True)
+
+# Configure loguru
+log_file = os.path.join(log_dir, f"upload_code_{time.strftime('%Y%m%d_%H%M%S')}.log")
+max_file_size = "5 MB"  # 5 MB
+
+# Remove default logger and add our configured loggers
+logger.remove()  # Remove default logger
+
+# Add console logger (INFO level and above)
+logger.add(
+    lambda msg: print(msg, end=""),  # Console output
+    level="INFO",
+    format="<green>{time:YYYY-MM-DD HH:mm:ss}</green> | <level>{level: <8}</level> | <cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - <level>{message}</level>"
+)
+
+# Add file logger (DEBUG level and above)
+logger.add(
+    log_file,
+    rotation=max_file_size,
+    retention=1,
+    level="DEBUG",
+    format="{time:YYYY-MM-DD HH:mm:ss} | {level: <8} | {name}:{function}:{line} - {message}",
+    enqueue=True  # Uses a queue for thread-safe logging
+)
 
 def upload_code(hash_id, zip_path, project_name, dataset_name, base_url=None, timeout=120):
     code_hashes_list = _fetch_dataset_code_hashes(project_name, dataset_name, base_url, timeout=timeout)

@@ -1,24 +1,9 @@
 import requests
 import json
 import os
+import tempfile
 import time
 from datetime import datetime
-import logging
-from logging.handlers import RotatingFileHandler
-
-logging.basicConfig(
-    level=logging.DEBUG,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.StreamHandler(),
-        RotatingFileHandler(
-            os.path.join(log_dir, "trace_uploader.log"),
-            maxBytes=max_file_size,
-            backupCount=backup_count
-        )
-    ]
-)
-logger = logging.getLogger("trace_uploader")
 
 class UploadTraces:
     def __init__(self, 

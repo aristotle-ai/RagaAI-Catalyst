@@ -1,11 +1,20 @@
 import requests
 import json
+import os
 import subprocess
 import logging
+import tempfile
 import traceback
 import pandas as pd
 import time
 from logging.handlers import RotatingFileHandler
+
+log_dir = os.path.join(tempfile.gettempdir(), "ragaai_logs")
+print(log_dir)
+os.makedirs(log_dir, exist_ok=True)
+
+max_file_size = 5 * 1024 * 1024  # 5 MB
+backup_count = 1  # Number of backup files to keep
 
 logging.basicConfig(
     level=logging.DEBUG,
@@ -45,14 +54,18 @@ def api_completion(messages, model_config, kwargs):
             response.raise_for_status()
             if model_config.get('log_level','')=='debug':
                 logger.info(f'Model response Job ID {job_id} {response.text}')
+            #change raise to pass
             if response.status_code!=200:
                 # logger.error(f'Error in model response Job ID {job_id}:',str(response.text))
-                raise ValueError(str(response.text))
+                print(str(response.text))
+                pass
             
             if response.status_code==200:
-                response = response.json()                
+                response = response.json()   
+                #change raise to pass             
                 if "error" in response:
-                    raise ValueError(response["error"]["message"])
+                    print(response["error"]["message"])
+                    pass
                 else:
                     result=  response["choices"][0]["message"]["content"]
                     response1 = result.replace('\n', '').replace('```json','').replace('```', '').strip()
@@ -62,11 +75,14 @@ def api_completion(messages, model_config, kwargs):
                         return(df)
                     except json.JSONDecodeError:
                         attempts += 1  # Increment attempts if JSON parsing fails
+                        #change raise to pass
                         if attempts == 3:
-                            raise Exception("Failed to generate a valid response after multiple attempts.")
-
+                            print("Failed to generate a valid response after multiple attempts.")
+                            pass
+        #change raise to pass
         except Exception as e:
-            raise ValueError(f"{e}")
+            print(f"{e}")
+            pass
 
 
 def get_username():

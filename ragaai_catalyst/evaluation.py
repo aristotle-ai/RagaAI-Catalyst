@@ -1,5 +1,6 @@
 import os
 import time
+import tempfile
 import requests
 import pandas as pd
 import io
@@ -7,6 +8,12 @@ from .ragaai_catalyst import RagaAICatalyst
 import logging
 import json
 from logging.handlers import RotatingFileHandler
+
+log_dir = os.path.join(tempfile.gettempdir(), "ragaai_logs")
+os.makedirs(log_dir, exist_ok=True)
+
+max_file_size = 5 * 1024 * 1024  # 5 MB
+backup_count = 1  # Number of backup files to keep
 
 logging.basicConfig(
     level=logging.DEBUG,
@@ -57,16 +64,20 @@ class Evaluation:
             project_list = [
                 project["name"] for project in response.json()["data"]["content"]
             ]
+            #change raise to pass
             if project_name not in project_list:
-                raise ValueError("Project not found. Please enter a valid project name")
+                logger.error("Project not found. Please enter a valid project name")
+                print("Project not found. Please enter a valid project name")
+                pass
             
             self.project_id = [
                 project["id"] for project in response.json()["data"]["content"] if project["name"] == project_name
             ][0]
-
+        #change raise to pass
         except requests.exceptions.RequestException as e:
             logger.error(f"Failed to retrieve projects list: {e}")
-            raise
+            print(f"Error: Failed to retrieve projects list: {e}")
+            pass
 
         try:
 
@@ -90,15 +101,18 @@ class Evaluation:
             response.raise_for_status()
             datasets_content = response.json()["data"]["content"]
             dataset_list = [dataset["name"] for dataset in datasets_content]
-
+            #change raise to pass
             if dataset_name not in dataset_list:
-                raise ValueError("Dataset not found. Please enter a valid dataset name")
+                logger.error("Dataset not found. Please enter a valid dataset name")
+                print("Dataset not found. Please enter a valid dataset name")
+                pass
                 
             self.dataset_id = [dataset["id"] for dataset in datasets_content if dataset["name"]==dataset_name][0]
-
+        #change raise to pass
         except requests.exceptions.RequestException as e:
             logger.error(f"Failed to retrieve dataset list: {e}")
-            raise
+            print(f"Error: Failed to retrieve dataset list: {e}")
+            pass
 
     
     def list_metrics(self):
@@ -154,9 +168,11 @@ class Evaluation:
                 return dataset["id"]
             else:
                 return dataset["derivedDatasetId"]
+        #change raise to pass
         except requests.exceptions.RequestException as e:
             logger.error(f"Failed to retrieve dataset list: {e}")
-            raise
+            print(f"Error: Failed to retrieve dataset list: {e}")
+            pass
 
 
     def _get_dataset_schema(self, metric_to_evaluate=None):
@@ -209,12 +225,18 @@ class Evaluation:
             if "".join(val.split("_")).lower()==schemaName:
                 if key in user_dataset_columns:
                     variableName=key
+                #change raise to pass
                 else:
-                    raise ValueError(f"Column '{key}' is not present in '{self.dataset_name}' dataset")
+                    logger.error(f"Column '{key}' is not present in '{self.dataset_name}' dataset")
+                    print(f"Column '{key}' is not present in '{self.dataset_name}' dataset")
+                    pass
         if variableName:
             return variableName
+        #change raise to pass
         else:
-            raise ValueError(f"Map '{schemaName}' column in schema_mapping for {metric_name} metric evaluation")
+            logger.error(f"Map '{schemaName}' column in schema_mapping for {metric_name} metric evaluation")
+            print(f"Map '{schemaName}' column in schema_mapping for {metric_name} metric evaluation")
+            pass
 
 
     def _get_mapping(self, metric_name, metrics_schema, schema_mapping):
@@ -296,12 +318,18 @@ class Evaluation:
             #pasing model configuration
             for key, value in metric["config"].items():
                 #checking if provider is one of the allowed providers
+                #change raise to pass
                 if key.lower()=="provider" and value.lower() not in sub_providers:
-                    raise ValueError("Enter a valid provider name. The following Provider names are supported: openai, azure, gemini, groq, anthropic, bedrock")
+                    logger.error("Enter a valid provider name. The following Provider names are supported: openai, azure, gemini, groq, anthropic, bedrock")
+                    print("Enter a valid provider name. The following Provider names are supported: openai, azure, gemini, groq, anthropic, bedrock")
+                    pass
     
                 if key.lower()=="threshold":
+                    #change raise to pass
                     if len(value)>1:
-                        raise ValueError("'threshold' can only take one argument gte/lte/eq")
+                        logger.error("'threshold' can only take one argument gte/lte/eq")
+                        print("'threshold' can only take one argument gte/lte/eq")
+                        pass
                     else:
                         for key_thres, value_thres in value.items():
                             base_json["metricSpec"]["config"]["params"][key] = {f"{key_thres}":value_thres}
@@ -358,19 +386,28 @@ class Evaluation:
         required_keys = {"name", "config", "column_name", "schema_mapping"}
         for metric in metrics:
             missing_keys = required_keys - metric.keys()
+            #change raise to pass
             if missing_keys:
-                raise ValueError(f"{missing_keys} required for each metric evaluation.")
+                logger.error(f"{missing_keys} required for each metric evaluation.")
+                print(f"{missing_keys} required for each metric evaluation.")
+                pass
 
         executed_metric_list = self._get_executed_metrics_list()
         metrics_name = self.list_metrics()
         user_metric_names = [metric["name"] for metric in metrics]
         for user_metric in user_metric_names:
+            #change raise to pass
             if user_metric not in metrics_name:
-                raise ValueError("Enter a valid metric name")
+                logger.error("Enter a valid metric name")
+                print("Enter a valid metric name")
+                pass
         column_names = [metric["column_name"] for metric in metrics]
+        #change raise to pass
         for column_name in column_names:
             if column_name in executed_metric_list:
-                raise ValueError(f"Column name '{column_name}' already exists.")
+                logger.error(f"Column name '{column_name}' already exists.")
+                print(f"Column name '{column_name}' already exists.")
+                pass
 
         headers = {
             'Content-Type': 'application/json',
@@ -390,8 +427,11 @@ class Evaluation:
             elapsed_ms = (time.time() - start_time) * 1000
             logger.debug(
                 f"API Call: [POST] {endpoint} | Status: {response.status_code} | Time: {elapsed_ms:.2f}ms")
+            #change raise to pass
             if response.status_code == 400:
-                raise ValueError(response.json()["message"])
+                logger.error(response.json()["message"])
+                print(response.json()["message"])
+                pass
             response.raise_for_status()
             if response.json()["success"]:
                 print(response.json()["message"])
@@ -409,8 +449,11 @@ class Evaluation:
             logger.error(f"An unexpected error occurred: {e}")
 
     def append_metrics(self, display_name):
+        #change raise to pass
         if not isinstance(display_name, str):
-            raise ValueError("display_name should be a string")
+            logger.error("display_name should be a string")
+            print("display_name should be a string")
+            pass
         
         headers = {
             "Authorization": f"Bearer {os.getenv('RAGAAI_CATALYST_TOKEN')}",
@@ -441,8 +484,11 @@ class Evaluation:
             elapsed_ms = (time.time() - start_time) * 1000
             logger.debug(
                 f"API Call: [POST] {endpoint} | Status: {response.status_code} | Time: {elapsed_ms:.2f}ms")
+            #change raise to pass
             if response.status_code == 400:
-                raise ValueError(response.json()["message"])
+                logger.error(response.json()["message"])
+                print(response.json()["message"])
+                pass
             response.raise_for_status()
             if response.json()["success"]:
                 print(response.json()["message"])

@@ -1,11 +1,19 @@
 import os
+import time
 import requests
 import logging
+import tempfile
 import pandas as pd
 from .utils import response_checker
 from .ragaai_catalyst import RagaAICatalyst
 
 from logging.handlers import RotatingFileHandler
+
+log_dir = os.path.join(tempfile.gettempdir(), "ragaai_logs")
+os.makedirs(log_dir, exist_ok=True)
+
+max_file_size = 5 * 1024 * 1024  # 5 MB
+backup_count = 1  # Number of backup files to keep
 
 logging.basicConfig(
     level=logging.DEBUG,
@@ -87,12 +95,16 @@ class Experiment:
             if os.getenv("RAGAAI_CATALYST_TOKEN") is not None
             else get_token()
         )
-        
+        #change raise to pass
         if not self._check_if_project_exists(project_name=project_name):
-            raise ValueError(f"Project '{project_name}' not found. Please enter a valid project name")
-        
+            logger.error(f"Project '{project_name}' not found. Please enter a valid project name")
+            print(f"Project '{project_name}' not found. Please enter a valid project name")
+            pass
+        #change raise to pass
         if not self._check_if_dataset_exists(project_name=project_name,dataset_name=dataset_name):
-            raise ValueError(f"dataset '{dataset_name}' not found. Please enter a valid dataset name")
+            logger.error(f"dataset '{dataset_name}' not found. Please enter a valid dataset name")
+            print(f"dataset '{dataset_name}' not found. Please enter a valid dataset name")
+            pass
 
 
         self.metrics = []
@@ -124,9 +136,11 @@ class Experiment:
             else:
                 logger.info(f"dataset '{dataset_name}' does not exist.")
             return exists
+        #change raise to pass
         except requests.exceptions.RequestException as e:
             logger.error(f"Failed to retrieve dataset list: {e}")
-            raise
+            print(f"Failed to retrieve dataset list: {e}")
+            pass
 
 
 
@@ -159,9 +173,11 @@ class Experiment:
             project_list = [
                 project["name"] for project in response.json()["data"]["content"]
             ]
+        #change raise to pass
         except requests.exceptions.RequestException as e:
             logger.error(f"Failed to retrieve projects list: {e}")
-            raise        
+            print(f"Failed to retrieve projects list: {e}")
+            pass        
         exists = project_name in project_list
         if exists:
             logger.info(f"Project '{project_name}' exists.")
@@ -236,11 +252,16 @@ class Experiment:
         sub_metrics = RagaAICatalyst.list_metrics()  
         for metric in metrics_list:
             provider = metric.get('config', {}).get('provider', '').lower()
+            #change raise to pass
             if provider and provider not in sub_providers:
-                raise ValueError("Enter a valid provider name. The following Provider names are supported: OpenAI, Azure, Gemini, Groq")
-
+                logger.error("Enter a valid provider name. The following Provider names are supported: OpenAI, Azure, Gemini, Groq")
+                print("Enter a valid provider name. The following Provider names are supported: OpenAI, Azure, Gemini, Groq")
+                pass
+            #change raise to pass
             if metric['name'] not in sub_metrics:
-                raise ValueError("Enter a valid metric name. Refer to RagaAI Metric Library to select a valid metric")
+                logger.error("Enter a valid metric name. Refer to RagaAI Metric Library to select a valid metric")
+                print("Enter a valid metric name. Refer to RagaAI Metric Library to select a valid metric")
+                pass
 
         json_data = {
             "projectName": self.project_name,
@@ -264,9 +285,11 @@ class Experiment:
             logger.debug(
                 f"API Call: [POST] {endpoint} | Status: {response.status_code} | Time: {elapsed_ms:.2f}ms")
             response.raise_for_status()
+        #change raise to pass
         except requests.exceptions.RequestException as e:
             logger.error(f"Failed to add metrics: {e}")
-            raise
+            print(f"Failed to add metrics: {e}")
+            pass
 
         status_code = response.status_code
         if status_code == 200:
@@ -301,9 +324,11 @@ class Experiment:
                 logger.debug(
                     f"API Call: [POST] {endpoint} | Status: {response.status_code} | Time: {elapsed_ms:.2f}ms")
                 response.raise_for_status()
+            #change raise to pass
             except requests.exceptions.RequestException as e:
                 logger.error(f"Failed to add metrics: {e}")
-                raise
+                print(f"Failed to add metrics: {e}")
+                pass
             status_code = response.status_code
             if status_code == 200:
                 test_response = response.json()
@@ -444,17 +469,21 @@ class Experiment:
                 parse_success, parsed_response = self.parse_response(test_response)
                 if parse_success:
                     return parsed_response
+                #change raise to pass
                 else:
                     logger.error(f"Failed to parse response: {test_response}")
-                    raise FailedToRetrieveResults(
+                    print(
                         f"Failed to parse response: {test_response}"
                     )
-
+                    pass
+            #change raise to pass
             else:
                 logger.error(f"Failed to retrieve results for job: {job_id_to_use}")
-                raise FailedToRetrieveResults(
+                print(
                     f"Failed to retrieve results for job: {job_id_to_use}"
                 )
+                pass
+                
 
             return parsed_response
         elif response.status_code == 401:
@@ -474,6 +503,8 @@ class Experiment:
                 return test_response
             else:
                 logger.error("Endpoint not responsive after retry attempts.")
+                print("Endpoint not responsive after retry attempts.")
+                pass
                 return response_checker(response, "Experiment.get_test_results")
         else:
             return (

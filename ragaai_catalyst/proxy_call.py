@@ -24,19 +24,27 @@ def api_completion(model,messages, api_base='http://127.0.0.1:8000',
             logger.info(f'Model response Job ID {job_id} {response.text}')
         if response.status_code!=200:
             # logger.error(f'Error in model response Job ID {job_id}:',str(response.text))
-            raise ValueError(str(response.text))
+            #change raise to pass
+            print(str(response.text))
+            pass
     except Exception as e:
         logger.error(f'Error in calling api Job ID {job_id}:',str(e))
-        raise ValueError(str(e))
+        #change raise to pass
+        print(str(e))
+        pass
     try:
         response = response.json()
         if 'error' in response:
             logger.error(f'Invalid response from API Job ID {job_id}:'+str(response))
-            raise ValueError(str(response.get('error')))
+            #change raise to pass
+            print(str(response.get('error')))
+            pass
         all_response.append(convert_output(response,job_id))
     except ValueError as e1:
         logger.error(f'Invalid json response from API Job ID {job_id}:'+response)
-        raise ValueError(str(e1))
+        #change raise to pass
+        print(str(e1))
+        pass
     except Exception as e1:
         if model_config.get('log_level','')=='debug':
             logger.info(f"Error trace Job ID: {job_id} {traceback.print_exc()}")
@@ -59,14 +67,21 @@ def convert_output(response,job_id):
             for chunk in response['prediction']['output']['chunks']:
                 candidate = chunk['candidates'][0]
                 if candidate['finishReason'] and candidate['finishReason'] not in ['STOP']:
-                    raise ValueError(candidate['finishReason'])
+                    #change raise to pass
+                    logger.error(f'Finish reason: {candidate["finishReason"]}')
+                    print(candidate['finishReason'])
                 part = candidate['content']['parts'][0]
                 full_response += part['text']
             return full_response
         else:
-            raise ValueError('Invalid prediction type passed in config')
+            #change raise to pass
+            logger.error(f'Invalid prediction type passed in config Job ID {job_id}:'+str(e1))
+            print('Invalid prediction type passed in config')
+            pass
     except ValueError as e1:
-        raise ValueError(str(e1))
+        #change raise to pass
+        logger.error(f'Invalid prediction type passed in config Job ID {job_id}:'+str(e1))
+        pass
     except Exception as e:
         logger.warning(f'Exception in formatting model response Job ID {job_id}:'+str(e))
         return None

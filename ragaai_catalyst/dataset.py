@@ -12,6 +12,13 @@ from .ragaai_catalyst import RagaAICatalyst
 import pandas as pd
 get_token = RagaAICatalyst.get_token
 
+
+log_dir = os.path.join(tempfile.gettempdir(), "ragaai_logs")
+os.makedirs(log_dir, exist_ok=True)
+
+max_file_size = 5 * 1024 * 1024  # 5 MB
+backup_count = 1  # Number of backup files to keep
+
 logging.basicConfig(
     level=logging.DEBUG,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -68,10 +75,11 @@ class Dataset:
             self.project_id = [
                 project["id"] for project in response.json()["data"]["content"] if project["name"] == project_name
             ][0]
-
+        #change raise to pass
         except requests.exceptions.RequestException as e:
             logger.error(f"Failed to retrieve projects list: {e}")
-            raise
+            print(f"Error: Failed to retrieve projects list: {e}")
+            pass
 
     def list_datasets(self):
         """
@@ -105,9 +113,11 @@ class Dataset:
                     f"API Call: [POST] {endpoint} | Status: {response.status_code} | Time: {elapsed_ms:.2f}ms")
                 response.raise_for_status()
                 return response
+            #change raise to pass
             except requests.exceptions.RequestException as e:
                 logger.error(f"Failed to list datasets: {e}")
-                raise
+                print(f"Error: Failed to list datasets: {e}")
+                pass
 
         try:
             response = make_request()
@@ -123,9 +133,11 @@ class Dataset:
             datasets = response.json()["data"]["content"]
             dataset_list = [dataset["name"] for dataset in datasets]
             return dataset_list
+        #change raise to pass
         except Exception as e:
             logger.error(f"Error in list_datasets: {e}")
-            raise
+            print(f"Error: Failed to list datasets: {e}")
+            pass
 
     def get_schema_mapping(self):
         headers = {
@@ -148,9 +160,11 @@ class Dataset:
             if not response.json()['success']:
                 raise ValueError('Unable to fetch Schema Elements for the CSV')
             return response_data
+        #change raise to pass
         except requests.exceptions.RequestException as e:
             logger.error(f"Failed to get CSV schema: {e}")
-            raise
+            print(f"Error: Failed to get CSV schema: {e}")
+            pass
 
     ###################### CSV Upload APIs ###################
 
@@ -184,9 +198,11 @@ class Dataset:
             response.raise_for_status()
             datasets = response.json()["data"]["content"]
             dataset_id = [dataset["id"] for dataset in datasets if dataset["name"]==dataset_name][0]
+        #change raise to pass
         except requests.exceptions.RequestException as e:
             logger.error(f"Failed to list datasets: {e}")
-            raise
+            print(f"Error: Failed to list datasets: {e}")
+            pass
 
         try:
             start_time = time.time()
@@ -206,9 +222,11 @@ class Dataset:
             if not response.json()['success']:
                 raise ValueError('Unable to fetch details of for the CSV')
             return dataset_columns
+        #change raise to pass
         except requests.exceptions.RequestException as e:
             logger.error(f"Failed to get CSV columns: {e}")
-            raise
+            print(f"Error: Failed to get CSV columns: {e}")
+            pass
 
     def create_from_csv(self, csv_path, dataset_name, schema_mapping):
         list_dataset = self.list_datasets()
@@ -234,9 +252,11 @@ class Dataset:
                     f"API Call: [GET] {endpoint} | Status: {response.status_code} | Time: {elapsed_ms:.2f}ms")
                 response.raise_for_status()
                 return response.json()
+            #change raise to pass
             except requests.exceptions.RequestException as e:
                 logger.error(f"Failed to get presigned URL: {e}")
-                raise
+                print(f"Error: Failed to get presigned URL: {e}")
+                pass
 
         try:
             presignedUrl = get_presignedUrl()
@@ -245,9 +265,11 @@ class Dataset:
                 filename = presignedUrl['data']['fileName']
             else:
                 raise ValueError('Unable to fetch presignedUrl')
+        #change raise to pass
         except Exception as e:
             logger.error(f"Error in get_presignedUrl: {e}")
-            raise
+            print(f"Error: Failed to get presigned URL: {e}")
+            pass
 
         #### put csv to presigned URL
         def put_csv_to_presignedUrl(url):
@@ -265,18 +287,22 @@ class Dataset:
                     )
                     response.raise_for_status()
                     return response
+            #change raise to pass
             except requests.exceptions.RequestException as e:
                 logger.error(f"Failed to put CSV to presigned URL: {e}")
-                raise
+                print(f"Error: Failed to put CSV to presigned URL: {e}")
+                pass
 
         try:
 
             put_csv_response = put_csv_to_presignedUrl(url)
             if put_csv_response.status_code not in (200, 201):
                 raise ValueError('Unable to put csv to the presignedUrl')
+        #change raise to pass
         except Exception as e:
             logger.error(f"Error in put_csv_to_presignedUrl: {e}")
-            raise
+            print(f"Error: Failed to put CSV to presigned URL: {e}")
+            pass
 
         ## Upload csv to elastic
         def upload_csv_to_elastic(data):
@@ -301,9 +327,11 @@ class Dataset:
                     raise ValueError(response.json()["message"])
                 response.raise_for_status()
                 return response.json()
+            #change raise to pass
             except requests.exceptions.RequestException as e:
                 logger.error(f"Failed to upload CSV to elastic: {e}")
-                raise
+                print(f"Error: Failed to upload CSV to elastic: {e}")
+                pass
 
         def generate_schema(mapping):
             result = {}
@@ -327,9 +355,11 @@ class Dataset:
             else:
                 print(upload_csv_response['message'])
                 self.jobId = upload_csv_response['data']['jobId']
+        #change raise to pass
         except Exception as e:
             logger.error(f"Error in create_from_csv: {e}")
-            raise
+            print(f"Error: Failed to create dataset from CSV: {e}")
+            pass
 
     def add_rows(self, csv_path, dataset_name):
         """
@@ -350,9 +380,11 @@ class Dataset:
             import pandas as pd
             df = pd.read_csv(csv_path)
             csv_columns = df.columns.tolist()
+        #change raise to pass
         except Exception as e:
             logger.error(f"Failed to read CSV file: {e}")
-            raise ValueError(f"Unable to read CSV file: {e}")
+            print(f"Error: Failed to read CSV file: {e}")
+            pass
 
         # Check column compatibility
         for column in existing_columns:
@@ -378,9 +410,11 @@ class Dataset:
                     f"API Call: [GET] {endpoint} | Status: {response.status_code} | Time: {elapsed_ms:.2f}ms")
                 response.raise_for_status()
                 return response.json()
+            #change raise to pass
             except requests.exceptions.RequestException as e:
                 logger.error(f"Failed to get presigned URL: {e}")
-                raise
+                print(f"Error: Failed to get presigned URL: {e}")
+                pass
 
         try:
             presignedUrl = get_presignedUrl()
@@ -389,9 +423,11 @@ class Dataset:
                 filename = presignedUrl['data']['fileName']
             else:
                 raise ValueError('Unable to fetch presignedUrl')
+        #change raise to pass
         except Exception as e:
             logger.error(f"Error in get_presignedUrl: {e}")
-            raise
+            print(f"Error: Failed to get presigned URL: {e}")
+            pass
 
         # Upload CSV to presigned URL
         def put_csv_to_presignedUrl(url):
@@ -409,17 +445,21 @@ class Dataset:
                     )
                     response.raise_for_status()
                     return response
+            #change raise to pass
             except requests.exceptions.RequestException as e:
                 logger.error(f"Failed to put CSV to presigned URL: {e}")
-                raise
+                print(f"Error: Failed to put CSV to presigned URL: {e}")
+                pass
 
         try:
             put_csv_response = put_csv_to_presignedUrl(url)
             if put_csv_response.status_code not in (200, 201):
                 raise ValueError('Unable to put csv to the presignedUrl')
+        #change raise to pass
         except Exception as e:
             logger.error(f"Error in put_csv_to_presignedUrl: {e}")
-            raise
+            print(f"Error: Failed to put CSV to presigned URL: {e}")
+            pass
 
         # Prepare schema mapping (assuming same mapping as original dataset)
         def generate_schema_mapping(dataset_name):
@@ -466,6 +506,8 @@ class Dataset:
                     response.raise_for_status()
                 except requests.exceptions.RequestException as e:
                     logger.error(f"Failed to get dataset details: {e}")
+                    print(f"Error: Failed to get dataset details: {e}")
+                    pass
                 # Extract schema mapping
                 schema_mapping = {}
                 for col in response.json()["data"]["datasetColumnsResponses"]:
@@ -474,7 +516,8 @@ class Dataset:
                 return schema_mapping
             except requests.exceptions.RequestException as e:
                 logger.error(f"Failed to get schema mapping: {e}")
-                raise
+                print(f"Error: Failed to get schema mapping: {e}")
+                pass
 
         # Upload CSV to elastic
         try:
@@ -509,7 +552,8 @@ class Dataset:
                 response.raise_for_status()
             except requests.exceptions.RequestException as e:
                 logger.error(f"Failed to add rows to dataset: {e}")
-                raise
+                print(f"Error: Failed to add rows to dataset: {e}")
+                pass
             
             # Check response
             response_data = response.json()
@@ -521,7 +565,8 @@ class Dataset:
         
         except Exception as e:
             logger.error(f"Error in add_rows_to_dataset: {e}")
-            raise
+            print(f"Error: Failed to add rows to dataset: {e}")
+            pass
 
     def add_columns(self, text_fields, dataset_name, column_name, provider, model, variables={}):
         """
@@ -680,11 +725,11 @@ class Dataset:
                 print(f"Column '{column_name}' added successfully to dataset '{dataset_name}'")
                 self.jobId = response_data['data']['jobId']
             else:
-                raise ValueError(response_data.get('message', 'Failed to add column'))
+                print(response_data.get('message', 'Failed to add column'))
         
         except requests.exceptions.RequestException as e:
             print(f"Error adding column: {e}")
-            raise
+            pass
 
     def get_status(self):
         headers = {
@@ -761,7 +806,8 @@ class Dataset:
             self.create_from_csv(tmp_csv_path, dataset_name, schema_mapping)
         except (IOError, UnicodeError) as e:
             logger.error(f"Error converting JSONL to CSV: {e}")
-            raise
+            print(f"Error: Failed to convert JSONL to CSV: {e}")
+            pass
         finally:
             if os.path.exists(tmp_csv_path):
                 try:
@@ -774,9 +820,11 @@ class Dataset:
         try:
             self._jsonl_to_csv(jsonl_path, tmp_csv_path)
             self.add_rows(tmp_csv_path, dataset_name)
+        #change raise to pass
         except (IOError, UnicodeError) as e:
             logger.error(f"Error converting JSONL to CSV: {e}")
-            raise
+            print(f"Error: Failed to convert JSONL to CSV: {e}")
+            pass
         finally:
             if os.path.exists(tmp_csv_path):
                 try:
@@ -789,9 +837,11 @@ class Dataset:
         try:
             df.to_csv(tmp_csv_path, index=False)
             self.create_from_csv(tmp_csv_path, dataset_name, schema_mapping)
+        #change raise to pass
         except (IOError, UnicodeError) as e:
             logger.error(f"Error converting DataFrame to CSV: {e}")
-            raise
+            print(f"Error: Failed to convert DataFrame to CSV: {e}")
+            pass
         finally:
             if os.path.exists(tmp_csv_path):
                 try:
@@ -804,9 +854,11 @@ class Dataset:
         try:
             df.to_csv(tmp_csv_path, index=False)
             self.add_rows(tmp_csv_path, dataset_name)
+        #change raise to pass
         except (IOError, UnicodeError) as e:
             logger.error(f"Error converting DataFrame to CSV: {e}")
-            raise
+            print(f"Error: Failed to convert DataFrame to CSV: {e}")
+            pass
         finally:
             if os.path.exists(tmp_csv_path):
                 try:

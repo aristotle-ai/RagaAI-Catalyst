@@ -16,31 +16,43 @@ import queue
 from datetime import datetime
 import atexit
 import glob
-from logging.handlers import RotatingFileHandler
 import concurrent.futures
 from typing import Dict, Any, Optional
+from loguru import logger
 
-# Set up logging
+
+# Create log directory
 log_dir = os.path.join(tempfile.gettempdir(), "ragaai_logs")
 os.makedirs(log_dir, exist_ok=True)
 
-# Define maximum file size (e.g., 5 MB) and backup count
-max_file_size = 5 * 1024 * 1024  # 5 MB
-backup_count = 1  # Number of backup files to keep
+# Configure loguru
+log_file = os.path.join(log_dir, "trace_uploader.log")
+max_file_size = "5 MB"  # 5 MB
 
-logging.basicConfig(
-    level=logging.DEBUG,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.StreamHandler(),
-        RotatingFileHandler(
-            os.path.join(log_dir, "trace_uploader.log"),
-            maxBytes=max_file_size,
-            backupCount=backup_count
-        )
-    ]
+# Remove default logger and add our configured loggers
+logger.remove()  # Remove default logger
+
+# Add console logger (INFO level and above)
+logger.add(
+    lambda msg: print(msg, end=""),  # Console output
+    level="INFO",
+    format="<green>{time:YYYY-MM-DD HH:mm:ss}</green> | <level>{level: <8}</level> | <cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - <level>{message}</level>"
 )
-logger = logging.getLogger("trace_uploader")
+
+# Add file logger (DEBUG level and above)
+logger.add(
+    log_file,
+    rotation=max_file_size,
+    retention=1,
+    level="DEBUG",
+    format="{time:YYYY-MM-DD HH:mm:ss} | {level: <8} | {name}:{function}:{line} - {message}",
+    enqueue=True  # Uses a queue for thread-safe logging
+)
+
+# Test the logger immediately
+logger.debug("Debug message - Should appear in log file")
+logger.info("Info message - Should appear in console and log file")
+
 
 try:
     from ragaai_catalyst.tracers.agentic_tracing.upload.upload_agentic_traces import UploadAgenticTraces

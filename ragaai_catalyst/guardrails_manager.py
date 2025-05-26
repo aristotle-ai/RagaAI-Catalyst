@@ -23,8 +23,11 @@ class GuardrailsManager:
         self.deployment_id = "NA"
         self.base_url = f"{RagaAICatalyst.BASE_URL}"
         list_projects, project_name_with_id = self._get_project_list()
+        #change raise to pass
         if project_name not in list_projects:
-            raise ValueError(f"Project '{self.project_name}' does not exists")
+            logger.error(f"Project '{self.project_name}' does not exists")
+            print(f"Project '{self.project_name}' does not exists")
+            pass
         
         self.project_id = [_["id"] for _ in project_name_with_id if _["name"]==self.project_name][0]
 
@@ -46,9 +49,11 @@ class GuardrailsManager:
             elapsed_ms = (time.time() - start_time) * 1000
             logger.debug(
                 f"API Call: [GET] {endpoint} | Status: {response.status_code} | Time: {elapsed_ms:.2f}ms")
+        #change raise to pass
         except requests.exceptions.RequestException as e:
             logger.error(f"Error in API call to {endpoint}: {e}")
-            raise
+            print(f"Error in API call to {endpoint}: {e}")
+            pass
         project_content = response.json()["data"]["content"]
         list_project = [_["name"] for _ in project_content]
         project_name_with_id = [{"id": _["id"], "name": _["name"]} for _ in project_content]
@@ -77,9 +82,11 @@ class GuardrailsManager:
             elapsed_ms = (time.time() - start_time) * 1000
             logger.debug(
                 f"API Call: [GET] {endpoint} | Status: {response.status_code} | Time: {elapsed_ms:.2f}ms")
+        #change raise to pass
         except requests.exceptions.RequestException as e:
             logger.error(f"Error in API call to {endpoint}: {e}")
-            raise
+            print(f"Error in API call to {endpoint}: {e}")
+            pass
         deployment_ids_content = response.json()["data"]["content"]
         deployment_ids_content = [{"id": _["id"], "name": _["name"]} for _ in deployment_ids_content]
         return deployment_ids_content
@@ -108,9 +115,11 @@ class GuardrailsManager:
             elapsed_ms = (time.time() - start_time) * 1000
             logger.debug(
                 f"API Call: [GET] {endpoint} | Status: {response.status_code} | Time: {elapsed_ms:.2f}ms")
+        #change raise to pass
         except requests.exceptions.RequestException as e:
             logger.error(f"Error in API call to {endpoint}: {e}")
-            raise
+            print(f"Error in API call to {endpoint}: {e}")
+            pass
         if response.json()['success']:
             return response.json()
         else:
@@ -140,9 +149,11 @@ class GuardrailsManager:
             elapsed_ms = (time.time() - start_time) * 1000
             logger.debug(
                 f"API Call: [GET] {endpoint} | Status: {response.status_code} | Time: {elapsed_ms:.2f}ms")
+        #change raise to pass
         except requests.exceptions.RequestException as e:
             logger.error(f"Error in API call to {endpoint}: {e}")
-            raise
+            print(f"Error in API call to {endpoint}: {e}")
+            pass
         list_guardrails_content = response.json()["data"]["metrics"]
         list_guardrails = [_["name"] for _ in list_guardrails_content]
         return list_guardrails
@@ -170,9 +181,11 @@ class GuardrailsManager:
             elapsed_ms = (time.time() - start_time) * 1000
             logger.debug(
                 f"API Call: [GET] {endpoint} | Status: {response.status_code} | Time: {elapsed_ms:.2f}ms")
+        #change raise to pass
         except requests.exceptions.RequestException as e:
             logger.error(f"Error in API call to {endpoint}: {e}")
-            raise
+            print(f"Error in API call to {endpoint}: {e}")
+            pass
         return response.json()["data"]
 
     
@@ -203,9 +216,11 @@ class GuardrailsManager:
                 )
                 response.raise_for_status()
                 return response
+            #change raise to pass
             except requests.exceptions.RequestException as e:
                 logger.error(f"Failed to list datasets: {e}")
-                raise
+                print(f"Failed to list datasets: {e}")
+                pass
 
         try:
             response = make_request()
@@ -220,9 +235,11 @@ class GuardrailsManager:
             datasets = response.json()["data"]["content"]
             dataset_list = [dataset["name"] for dataset in datasets]
             return dataset_list
+        #change raise to pass
         except Exception as e:
             logger.error(f"Error in list_datasets: {e}")
-            raise
+            print(f"Error in list_datasets: {e}")
+            pass
 
 
     def create_deployment(self, deployment_name, deployment_dataset_name):
@@ -268,11 +285,14 @@ class GuardrailsManager:
             elapsed_ms = (time.time() - start_time) * 1000
             logger.debug(
                 f"API Call: [POST] {endpoint} | Status: {response.status_code} | Time: {elapsed_ms:.2f}ms")
+        #change raise to pass
         except requests.exceptions.RequestException as e:
             logger.error(f"Error in API call to {endpoint}: {e}")
-            raise
+            print(f"Error in API call to {endpoint}: {e}")
+            pass
         if response.status_code == 409:
-            raise ValueError(f"Data with '{deployment_name}' already exists, choose a unique name")
+            print(f"Data with '{deployment_name}' already exists, choose a unique name")
+            pass
         if response.json()["success"]:
             print(response.json()["message"])
             deployment_ids = self.list_deployment_ids()
@@ -329,9 +349,11 @@ class GuardrailsManager:
             elapsed_ms = (time.time() - start_time) * 1000
             logger.debug(
                 f"API Call: [POST] {endpoint} | Status: {response.status_code} | Time: {elapsed_ms:.2f}ms")
+        #change raise to pass
         except requests.exceptions.RequestException as e:
             logger.error(f"Error in API call to {endpoint}: {e}")
-            raise
+            print(f"Error in API call to {endpoint}: {e}")
+            pass
         if response.json()["success"]:
             print(response.json()["message"])
         else:

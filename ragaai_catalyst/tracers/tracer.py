@@ -1,5 +1,6 @@
 import os
 import uuid
+import time
 import datetime
 import logging
 import asyncio
@@ -170,7 +171,9 @@ class Tracer(AgenticTracing):
                 project["name"] for project in response.json()["data"]["content"]
             ]
             if project_name not in project_list:
-                raise ValueError("Project not found. Please enter a valid project name")
+                logger.error("Project not found. Please enter a valid project name")
+                print("Project not found. Please enter a valid project name")
+                pass
             
             self.project_id = [
                 project["id"] for project in response.json()["data"]["content"] if project["name"] == project_name
@@ -181,7 +184,8 @@ class Tracer(AgenticTracing):
 
         except requests.exceptions.RequestException as e:
             logger.error(f"Failed to retrieve projects list: {e}")
-            raise
+            print("Failed to retrieve projects list: An unexpected error occurred")
+            pass
 
         # if tracer_type == "langchain":
         #     instrumentors = []
