@@ -232,7 +232,6 @@ def submit_upload_task(filepath, hash_id, zip_path, project_name, project_id, da
     logger.debug(f"Task details - Project: {project_name}, Dataset: {dataset_name}, Hash: {hash_id}, Base_URL: {base_url}")
     
     # Verify the trace file exists
-    import pdb; pdb.set_trace()
 
     if not os.path.exists(filepath):
         logger.error(f"Trace file not found: {filepath}")
