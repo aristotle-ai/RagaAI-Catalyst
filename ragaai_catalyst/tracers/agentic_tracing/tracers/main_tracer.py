@@ -17,6 +17,11 @@ import logging
 # from .custom_tracer import CustomTracerMixin
 # from ..utils.span_attributes import SpanAttributes
 
+logger = logging.getLogger(__name__)
+logging_level = (
+    logger.setLevel(logging.DEBUG) if os.getenv("DEBUG") == "1" else logging.INFO
+)
+
 from ..data.data_structure import (
     Trace,
     Metadata,
@@ -160,7 +165,11 @@ class AgenticTracing(
         """
         Pass through the post-processor registration to the BaseTracer
         """
-        super().register_post_processor(post_processor_func)
+        # super().register_post_processor(post_processor_func)
+        if not callable(post_processor_func):
+            raise TypeError("post_processor_func must be a callable")
+        self.post_processor = post_processor_func
+        logger.debug("Post-processor function registered successfully in AgenticTracing")
 
     def start(self):
         """Start tracing"""
