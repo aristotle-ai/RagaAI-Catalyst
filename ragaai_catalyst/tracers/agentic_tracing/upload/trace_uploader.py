@@ -19,6 +19,7 @@ import glob
 from logging.handlers import RotatingFileHandler
 import concurrent.futures
 from typing import Dict, Any, Optional
+import threading
 
 # Set up logging
 log_dir = os.path.join(tempfile.gettempdir(), "ragaai_logs")
@@ -65,15 +66,31 @@ STATUS_FAILED = "failed"
 
 # Global executor for handling uploads
 _executor = None
+_executor_lock = threading.Lock()
 # Dictionary to track futures and their associated task IDs
 _futures: Dict[str, Any] = {}
+_futures_lock = threading.Lock()
 
-def get_executor():
+
+_cleanup_lock = threading.Lock()
+_last_cleanup = 0
+CLEANUP_INTERVAL = 300  # 5 minutes
+def get_executor(max_workers=None):
     """Get or create the thread pool executor"""
     global _executor
-    if _executor is None:
-        _executor = concurrent.futures.ThreadPoolExecutor(max_workers=8, thread_name_prefix="trace_uploader")
-    return _executor
+    with _executor_lock:
+        if _executor is None:
+            # Calculate optimal worker count
+            if max_workers is None:
+                max_workers = min(32, (os.cpu_count() or 1) * 4)
+
+            logger.info(f"Creating ThreadPoolExecutor with {max_workers} workers")
+            _executor = concurrent.futures.ThreadPoolExecutor(
+                max_workers=max_workers,
+                thread_name_prefix="trace_uploader"
+            )
+            atexit.register(shutdown)
+        return _executor
 
 def process_upload(task_id: str, filepath: str, hash_id: str, zip_path: str, 
                   project_name: str, project_id: str, dataset_name: str, 
@@ -217,6 +234,31 @@ def process_upload(task_id: str, filepath: str, hash_id: str, zip_path: str,
     save_task_status(result)
     return result
 
+def cleanup_completed_futures():
+    """Remove completed futures to prevent memory leaks"""
+    global _futures, _last_cleanup
+
+    current_time = time.time()
+    if current_time - _last_cleanup < CLEANUP_INTERVAL:
+        return
+
+    with _cleanup_lock:
+        if current_time - _last_cleanup < CLEANUP_INTERVAL:
+            return  # Double-check after acquiring lock
+        with _futures_lock:
+            completed_tasks = []
+            for task_id, future in _futures.items():
+                if future.done():
+                    completed_tasks.append(task_id)
+
+            for task_id in completed_tasks:
+                del _futures[task_id]
+
+            _last_cleanup = current_time
+
+            if completed_tasks:
+                logger.info(f"Cleaned up {len(completed_tasks)} completed futures")
+
 def save_task_status(task_status: Dict[str, Any]):
     """Save task status to a file"""
     task_id = task_status["task_id"]
@@ -258,6 +300,8 @@ def submit_upload_task(filepath, hash_id, zip_path, project_name, project_id, da
     
     # Submit the task to the executor
     executor = get_executor()
+    # Cleanup completed futures periodically
+    cleanup_completed_futures()
     future = executor.submit(
         process_upload,
         task_id=task_id,
@@ -273,7 +317,8 @@ def submit_upload_task(filepath, hash_id, zip_path, project_name, project_id, da
     )
     
     # Store the future for later status checks
-    _futures[task_id] = future
+    with _executor_lock:
+        _futures[task_id] = future
     
     # Create initial status
     initial_status = {
@@ -299,7 +344,8 @@ def get_task_status(task_id):
     logger.debug(f"Getting status for task {task_id}")
     
     # Check if we have a future for this task
-    future = _futures.get(task_id)
+    with _futures_lock:
+        future = _futures.get(task_id)
     
     # If we have a future, check its status
     if future:
@@ -328,16 +374,76 @@ def get_task_status(task_id):
     
     return {"status": "unknown", "error": "Task not found"}
 
-def shutdown():
-    """Shutdown the executor"""
+
+def get_upload_queue_status():
+    """Get detailed status of upload queue"""
+    with _executor_lock:
+        executor = get_executor()
+
+    if executor is None:
+        return {
+            "total_submitted": 0,
+            "pending_uploads": 0,
+            "completed_uploads": 0,
+            "failed_uploads": 0,
+            "thread_pool_queue_size": 0,
+            "active_workers": 0,
+            "max_workers": 0
+        }
+
+    pending_count = len([f for f in _futures.values() if not f.done()])
+    completed_count = len([f for f in _futures.values() if f.done() and not f.exception()])
+    failed_count = len([f for f in _futures.values() if f.done() and f.exception()])
+
+    # Try to get thread pool queue size (may not be available in all Python versions)
+    queue_size = 0
+    try:
+        if hasattr(executor, '_work_queue'):
+            queue_size = executor._work_queue.qsize()
+    except:
+        pass
+
+    return {
+        "total_submitted": len(_futures),
+        "pending_uploads": pending_count,
+        "completed_uploads": completed_count,
+        "failed_uploads": failed_count,
+        "thread_pool_queue_size": queue_size,
+        "active_workers": getattr(executor, '_threads', set()).__len__() if executor else 0,
+        "max_workers": executor._max_workers if executor else 0
+    }
+def shutdown(timeout=120):
+    """Enhanced shutdown with timeout and progress reporting"""
     global _executor
-    if _executor:
-        logger.info("Shutting down executor")
-        _executor.shutdown(wait=True)
+    with _executor_lock:
+        if _executor is None:
+            return
+        # Log current state
+        status = get_upload_queue_status()
+        logger.info(f"Shutting down uploader. Pending uploads: {status['pending_uploads']}")
+
+        if status['pending_uploads'] > 0:
+            logger.info(f"Waiting up to {timeout}s for {status['pending_uploads']} uploads to complete...")
+
+            # Shutdown with timeout
+            try:
+                _executor.shutdown(wait=True, timeout=timeout)
+                logger.info("All uploads completed successfully")
+            except Exception as e:
+                logger.warning(f"Shutdown timeout reached. Some uploads may be incomplete: {e}")
+        else:
+            _executor.shutdown(wait=False)
+
         _executor = None
 
+    # Final cleanup
+    with _futures_lock:
+        incomplete_tasks = [task_id for task_id, future in _futures.items() if not future.done()]
+        if incomplete_tasks:
+            logger.warning(f"Shutdown with {len(incomplete_tasks)} incomplete uploads: {incomplete_tasks[:5]}...")
+
 # Register shutdown handler
-atexit.register(shutdown)
+# atexit.register(shutdown)
 
 # For backward compatibility
 def ensure_uploader_running():
