@@ -234,30 +234,54 @@ def process_upload(task_id: str, filepath: str, hash_id: str, zip_path: str,
     save_task_status(result)
     return result
 
-def cleanup_completed_futures():
-    """Remove completed futures to prevent memory leaks"""
-    global _futures, _last_cleanup
-
-    current_time = time.time()
-    if current_time - _last_cleanup < CLEANUP_INTERVAL:
+def shutdown_with_manual_timeout(timeout=120):
+    """Enhanced shutdown with manual timeout and progress reporting"""
+    global _executor, _futures
+    if _executor is None:
         return
 
-    with _cleanup_lock:
-        if current_time - _last_cleanup < CLEANUP_INTERVAL:
-            return  # Double-check after acquiring lock
-        with _futures_lock:
-            completed_tasks = []
-            for task_id, future in _futures.items():
-                if future.done():
-                    completed_tasks.append(task_id)
+    # Log current state
+    status = get_upload_queue_status()
+    logger.info(f"Shutting down uploader. Pending uploads: {status['pending_uploads']}")
 
-            for task_id in completed_tasks:
-                del _futures[task_id]
+    if status['pending_uploads'] > 0:
+        logger.info(f"Waiting up to {timeout}s for {status['pending_uploads']} uploads to complete...")
 
-            _last_cleanup = current_time
+        start_time = time.time()
+        last_report = start_time
 
-            if completed_tasks:
-                logger.info(f"Cleaned up {len(completed_tasks)} completed futures")
+        while time.time() - start_time < timeout:
+            # Check if all futures are done
+            with _futures_lock:
+                pending_futures = [f for f in _futures.values() if not f.done()]
+                if not pending_futures:
+                    logger.info("All uploads completed successfully")
+                    break
+
+                # Report progress every 10 seconds
+                current_time = time.time()
+                if current_time - last_report >= 10:
+                    elapsed = current_time - start_time
+                    remaining = timeout - elapsed
+                    logger.info(f"Still waiting for {len(pending_futures)} uploads to complete. "
+                                f"Time remaining: {remaining:.1f}s")
+                    last_report = current_time
+
+                # Sleep briefly to avoid busy waiting
+                time.sleep(0.5)
+        else:
+            # Timeout reached
+            pending_futures = [f for f in _futures.values() if not f.done()]
+            logger.warning(f"Shutdown timeout reached. {len(pending_futures)} uploads still pending.")
+
+    # Shutdown the executor
+    try:
+        _executor.shutdown(wait=False)  # Don't wait here since we already waited above
+        logger.info("Executor shutdown initiated")
+    except Exception as e:
+        logger.error(f"Error during executor shutdown: {e}")
+
+    _executor = None
 
 def save_task_status(task_status: Dict[str, Any]):
     """Save task status to a file"""
