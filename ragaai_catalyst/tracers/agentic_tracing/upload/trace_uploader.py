@@ -390,10 +390,10 @@ def get_upload_queue_status():
             "active_workers": 0,
             "max_workers": 0
         }
-
-    pending_count = len([f for f in _futures.values() if not f.done()])
-    completed_count = len([f for f in _futures.values() if f.done() and not f.exception()])
-    failed_count = len([f for f in _futures.values() if f.done() and f.exception()])
+    with _futures_lock:
+        pending_count = len([f for f in _futures.values() if not f.done()])
+        completed_count = len([f for f in _futures.values() if f.done() and not f.exception()])
+        failed_count = len([f for f in _futures.values() if f.done() and f.exception()])
 
     # Try to get thread pool queue size (may not be available in all Python versions)
     queue_size = 0
@@ -412,35 +412,59 @@ def get_upload_queue_status():
         "active_workers": getattr(executor, '_threads', set()).__len__() if executor else 0,
         "max_workers": executor._max_workers if executor else 0
     }
+
+
 def shutdown(timeout=120):
-    """Enhanced shutdown with timeout and progress reporting"""
-    global _executor
+    """Enhanced shutdown with manual timeout and progress reporting"""
+    global _executor, _futures
     with _executor_lock:
         if _executor is None:
             return
-        # Log current state
-        status = get_upload_queue_status()
-        logger.info(f"Shutting down uploader. Pending uploads: {status['pending_uploads']}")
 
-        if status['pending_uploads'] > 0:
-            logger.info(f"Waiting up to {timeout}s for {status['pending_uploads']} uploads to complete...")
+    # Log current state
+    status = get_upload_queue_status()
+    logger.info(f"Shutting down uploader. Pending uploads: {status['pending_uploads']}")
 
-            # Shutdown with timeout
-            try:
-                _executor.shutdown(wait=True, timeout=timeout)
-                logger.info("All uploads completed successfully")
-            except Exception as e:
-                logger.warning(f"Shutdown timeout reached. Some uploads may be incomplete: {e}")
+    if status['pending_uploads'] > 0:
+        logger.info(f"Waiting up to {timeout}s for {status['pending_uploads']} uploads to complete...")
+
+        start_time = time.time()
+        last_report = start_time
+
+        while time.time() - start_time < timeout:
+            # Check if all futures are done
+            with _futures_lock:
+                pending_futures = [f for f in _futures.values() if not f.done()]
+
+                if not pending_futures:
+                    logger.info("All uploads completed successfully")
+                    break
+
+                # Report progress every 10 seconds
+                current_time = time.time()
+                if current_time - last_report >= 10:
+                    elapsed = current_time - start_time
+                    remaining = timeout - elapsed
+                    logger.info(f"Still waiting for {len(pending_futures)} uploads to complete. "
+                                f"Time remaining: {remaining:.1f}s")
+                    last_report = current_time
+
+                # Sleep briefly to avoid busy waiting
+                time.sleep(0.5)
         else:
-            _executor.shutdown(wait=False)
+            # Timeout reached
+            with _futures_lock:
+                pending_futures = [f for f in _futures.values() if not f.done()]
+                logger.warning(f"Shutdown timeout reached. {len(pending_futures)} uploads still pending.")
 
-        _executor = None
+    # Shutdown the executor
+    try:
+        _executor.shutdown(wait=False)  # Don't wait here since we already waited above
+        logger.info("Executor shutdown initiated")
+    except Exception as e:
+        logger.error(f"Error during executor shutdown: {e}")
 
-    # Final cleanup
-    with _futures_lock:
-        incomplete_tasks = [task_id for task_id, future in _futures.items() if not future.done()]
-        if incomplete_tasks:
-            logger.warning(f"Shutdown with {len(incomplete_tasks)} incomplete uploads: {incomplete_tasks[:5]}...")
+    _executor = None
 
 # Register shutdown handler
 # atexit.register(shutdown)
