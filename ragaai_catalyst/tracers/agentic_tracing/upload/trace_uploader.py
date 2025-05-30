@@ -67,17 +67,28 @@ STATUS_FAILED = "failed"
 _executor = None
 # Dictionary to track futures and their associated task IDs
 _futures: Dict[str, Any] = {}
+# Default configuration for concurrency and retries
+max_concurrent_uploads = int(os.environ.get('RAGAAI_MAX_CONCURRENT_UPLOADS', '32'))
+max_retries = int(os.environ.get('RAGAAI_UPLOAD_MAX_RETRIES', '3'))
+# Rate limiting - time between upload attempts in seconds
+upload_rate_limit = float(os.environ.get('RAGAAI_UPLOAD_RATE_LIMIT', '0.1'))
 
-def get_executor():
-    """Get or create the thread pool executor"""
+def get_executor(max_workers=None):
+    """Get or create the thread pool executor with configurable max_workers
+    
+    Args:
+        max_workers: Maximum number of worker threads. If None, uses the value from environment variable.
+    """
     global _executor
     if _executor is None:
-        _executor = concurrent.futures.ThreadPoolExecutor(max_workers=8, thread_name_prefix="trace_uploader")
+        workers = max_workers if max_workers is not None else max_concurrent_uploads
+        logger.info(f"Initializing trace uploader with {workers} worker threads")
+        _executor = concurrent.futures.ThreadPoolExecutor(max_workers=workers, thread_name_prefix="trace_uploader")
     return _executor
 
 def process_upload(task_id: str, filepath: str, hash_id: str, zip_path: str, 
                   project_name: str, project_id: str, dataset_name: str, 
-                  user_details: Dict[str, Any], base_url: str, timeout=120) -> Dict[str, Any]:
+                  user_details: Dict[str, Any], base_url: str, timeout=120, max_retries=3) -> Dict[str, Any]:
     """
     Process a single upload task
     
@@ -256,8 +267,13 @@ def submit_upload_task(filepath, hash_id, zip_path, project_name, project_id, da
     # Generate a unique task ID
     task_id = f"task_{int(time.time())}_{os.getpid()}_{hash(str(time.time()))}"
     
-    # Submit the task to the executor
-    executor = get_executor()
+    # Submit the task to the executor with configurable concurrency
+    executor = get_executor(max_concurrent_uploads)
+    
+    # Check if we're at capacity and log a warning if so
+    if hasattr(executor, '_work_queue') and executor._work_queue.qsize() > 10:
+        logger.warning(f"Upload queue size: {executor._work_queue.qsize()} tasks - consider increasing max_workers")
+    
     future = executor.submit(
         process_upload,
         task_id=task_id,
@@ -269,7 +285,8 @@ def submit_upload_task(filepath, hash_id, zip_path, project_name, project_id, da
         dataset_name=dataset_name,
         user_details=user_details,
         base_url=base_url,
-        timeout=timeout
+        timeout=timeout,
+        max_retries=max_retries
     )
     
     # Store the future for later status checks

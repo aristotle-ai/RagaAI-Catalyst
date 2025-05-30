@@ -245,12 +245,49 @@ class UploadAgenticTraces:
             print(f"Error while reading dataset spans: {e}")
             return None
 
-    def upload_agentic_traces(self):
-        try:
-            presignedUrl = self._get_presigned_url()
-            if presignedUrl is None:
-                return
-            self._put_presigned_url(presignedUrl, self.json_file_path)
-            self.insert_traces(presignedUrl)
-        except Exception as e:
-            print(f"Error while uploading agentic traces: {e}")
+    def upload_agentic_traces(self, max_retries=3):
+        """Upload agentic traces with retry logic
+        
+        Args:
+            max_retries: Maximum number of retry attempts for failed uploads
+        """
+        for attempt in range(max_retries):
+            try:
+                # Add a small delay between retries to prevent overwhelming the server
+                if attempt > 0:
+                    retry_delay = min(2 ** attempt, 30)  # Exponential backoff with max of 30 seconds
+                    logger.info(f"Retry attempt {attempt+1}/{max_retries} for trace upload after {retry_delay}s delay")
+                    time.sleep(retry_delay)
+                
+                # Step 1: Get presigned URL
+                presignedUrl = self._get_presigned_url()
+                if presignedUrl is None:
+                    logger.error("Failed to get presigned URL, retrying...")
+                    continue
+                
+                # Step 2: Upload to presigned URL
+                put_result = self._put_presigned_url(presignedUrl, self.json_file_path)
+                if put_result is None:
+                    logger.error("Failed to upload to presigned URL, retrying...")
+                    continue
+                
+                # Step 3: Insert trace metadata
+                insert_result = self.insert_traces(presignedUrl)
+                if insert_result is None:
+                    logger.error("Failed to insert trace metadata, retrying...")
+                    continue
+                
+                # If we got here, all steps succeeded
+                logger.info("Successfully uploaded agentic trace")
+                return True
+                
+            except requests.exceptions.RequestException as e:
+                logger.error(f"Network error during trace upload (attempt {attempt+1}/{max_retries}): {e}")
+                # Continue to next retry attempt
+            except Exception as e:
+                logger.error(f"Unexpected error during trace upload (attempt {attempt+1}/{max_retries}): {e}")
+                # Continue to next retry attempt
+        
+        # If we get here, all retry attempts failed
+        logger.error(f"Failed to upload agentic trace after {max_retries} attempts")
+        return False
