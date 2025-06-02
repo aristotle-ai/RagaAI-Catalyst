@@ -2,6 +2,7 @@ import json
 import logging
 import os
 import tempfile
+import time
 from dataclasses import asdict
 
 from opentelemetry.sdk.trace.export import SpanExporter, SpanExportResult
@@ -80,6 +81,10 @@ class RAGATraceExporter(SpanExporter):
         for trace_id, spans in self.trace_spans.items():
             self.process_complete_trace(spans, trace_id)
         self.trace_spans.clear()
+        
+        # Add a small delay to ensure all traces have been submitted to the uploader
+        # before the main process exits and triggers the executor shutdown
+        time.sleep(0.5)
 
     def process_complete_trace(self, spans, trace_id):
         # Convert the trace to ragaai trace format
