@@ -6,7 +6,6 @@ from dataclasses import asdict
 
 from opentelemetry.sdk.trace.export import SpanExporter, SpanExportResult
 
-from ragaai_catalyst.tracers.agentic_tracing.tracers.base import TracerJSONEncoder
 from ragaai_catalyst.tracers.agentic_tracing.upload.trace_uploader import (
     submit_upload_task,
 )
@@ -24,6 +23,29 @@ logging_level = (
     logger.setLevel(logging.DEBUG) if os.getenv("DEBUG") == "1" else logging.INFO
 )
 
+class TracerJSONEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, datetime):
+            return obj.isoformat()
+        if isinstance(obj, bytes):
+            try:
+                return obj.decode("utf-8")
+            except UnicodeDecodeError:
+                return str(obj)  # Fallback to string representation
+        if hasattr(obj, "to_dict"):  # Handle objects with to_dict method
+            return obj.to_dict()
+        if hasattr(obj, "__dict__"):
+            # Filter out None values and handle nested serialization
+            return {
+                k: v
+                for k, v in obj.__dict__.items()
+                if v is not None and not k.startswith("_")
+            }
+        try:
+            # Try to convert to a basic type
+            return str(obj)
+        except:
+            return None  # Last resort: return None instead of failing
 
 class RAGATraceExporter(SpanExporter):
     def __init__(self, tracer_type, files_to_zip, project_name, project_id, dataset_name, user_details, base_url, custom_model_cost, timeout=120, post_processor = None, max_upload_workers = 30,user_context = None, user_gt = None, external_id=None):
