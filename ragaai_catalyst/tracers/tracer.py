@@ -551,106 +551,6 @@ class Tracer(AgenticTracing):
         metadata.setdefault("recorded_on", str(datetime.datetime.now()))
         return metadata
 
-    def _add_unique_key(self, data, key_name):
-        data[key_name] = get_unique_key(data)
-        return data
-
-    def _setup_provider(self):
-        self.filespanx = FileSpanExporter(
-            project_name=self.project_name,
-            metadata=self.metadata,
-            pipeline=self.pipeline,
-            raga_client=self.raga_client,
-        )
-        tracer_provider = trace_sdk.TracerProvider()
-        tracer_provider.add_span_processor(SimpleSpanProcessor(self.filespanx))
-        return tracer_provider
-
-    def _setup_instrumentor(self, tracer_type):
-        instrumentors = {
-            "langchain": LangchainInstrumentor,
-            "openai": OpenAIInstrumentor,
-            "llama_index": LlamaIndexInstrumentor,
-        }
-        if tracer_type not in instrumentors:
-            logger.error(f"Invalid tracer type: {tracer_type}")
-        return instrumentors[tracer_type]().get()
-
-    @contextmanager
-    def trace(self):
-        """
-        Synchronous context manager for tracing.
-        Usage:
-            with tracer.trace():
-                # Your code here
-        """
-        self.start()
-        try:
-            yield self
-        finally:
-            self.stop()
-
-    def start(self):
-        """Start the tracer."""
-        if self.tracer_type == "langchain":
-            super().start()
-            return self
-        elif self.tracer_type == "llamaindex":
-            super().start()
-            return self
-
-            # self.llamaindex_tracer = LlamaIndexInstrumentationTracer(self._pass_user_data())
-            # return self.llamaindex_tracer.start()
-        elif self.tracer_type == "rag/langchain":
-            super().start()
-            return self
-        else:
-            super().start()
-            return self
-
-    def stop(self):
-        """Stop the tracer and initiate trace upload."""
-        if self.tracer_type == "langchain":
-            super().stop()
-            return self
-        elif self.tracer_type == "llamaindex":
-            super().stop()
-            return self
-
-
-            # if self.llamaindex_tracer is None:
-            #     raise ValueError("LlamaIndex tracer was not started")
-
-            # user_detail = self._pass_user_data()
-            # converted_back_to_callback = self.llamaindex_tracer.stop()
-
-            # filepath_3 = os.path.join(os.getcwd(), "llama_final_result.json")
-            # with open(filepath_3, 'w') as f:
-            #     json.dump(converted_back_to_callback, f, default=str, indent=2)
-
-            # # Apply post-processor if registered
-            # if self.post_processor is not None:
-            #     try:
-            #         final_trace_filepath = self.post_processor(filepath_3)
-            #         logger.debug(f"Post-processor applied successfully, new path: {filepath_3}")
-            #     except Exception as e:
-            #         logger.error(f"Error in post-processing: {e}")
-            # else:
-            #     final_trace_filepath = filepath_3
-
-            # if converted_back_to_callback:
-            #     UploadTraces(json_file_path=final_trace_filepath,
-            #                  project_name=self.project_name,
-            #                  project_id=self.project_id,
-            #                  dataset_name=self.dataset_name,
-            #                  user_detail=user_detail,
-            #                  base_url=self.base_url
-            #                  ).upload_traces()
-            # return 
-        elif self.tracer_type == "rag/langchain":
-            super().stop()
-        else:
-            super().stop()
 
     def get_upload_status(self):
         """Check the status of the trace upload."""
@@ -665,14 +565,8 @@ class Tracer(AgenticTracing):
                     return f"Upload failed: {str(e)}"
             return "Upload in progress..."
 
-    def _run_async(self, coroutine):
-        """Run an asynchronous coroutine in a separate thread."""
-        loop = asyncio.new_event_loop()
-        with ThreadPoolExecutor() as executor:
-            future = executor.submit(lambda: loop.run_until_complete(coroutine))
-        return future
 
-    async def _upload_traces(self):
+
         """
         Asynchronously uploads traces to the RagaAICatalyst server.
 
