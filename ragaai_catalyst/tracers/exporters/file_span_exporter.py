@@ -9,7 +9,6 @@ import asyncio
 from concurrent.futures import ThreadPoolExecutor
 from opentelemetry.sdk.trace.export import SpanExporter
 from ..utils import get_unique_key
-from .raga_exporter import RagaExporter
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)

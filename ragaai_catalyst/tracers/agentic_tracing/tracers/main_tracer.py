@@ -8,14 +8,14 @@ import builtins
 from pathlib import Path
 import logging
 
-from .base import BaseTracer
-from .llm_tracer import LLMTracerMixin
-from .tool_tracer import ToolTracerMixin
-from .agent_tracer import AgentTracerMixin
-from .network_tracer import NetworkTracer
-from .user_interaction_tracer import UserInteractionTracer
-from .custom_tracer import CustomTracerMixin
-from ..utils.span_attributes import SpanAttributes
+# from .base import BaseTracer
+# from .llm_tracer import LLMTracerMixin
+# from .tool_tracer import ToolTracerMixin
+# from .agent_tracer import AgentTracerMixin
+# from .network_tracer import NetworkTracer
+# from .user_interaction_tracer import UserInteractionTracer
+# from .custom_tracer import CustomTracerMixin
+# from ..utils.span_attributes import SpanAttributes
 
 from ..data.data_structure import (
     Trace,
@@ -42,19 +42,18 @@ from ..data.data_structure import (
 )
 
 from ....ragaai_catalyst import RagaAICatalyst
-from ragaai_catalyst.tracers.upload_traces import UploadTraces
 
 
 class AgenticTracing(
-    BaseTracer, LLMTracerMixin, ToolTracerMixin, AgentTracerMixin, CustomTracerMixin
+#    BaseTracer, LLMTracerMixin, ToolTracerMixin, AgentTracerMixin, CustomTracerMixin
 ):
     def __init__(self, user_detail, auto_instrumentation=None, timeout=120):
         # Initialize all parent classes
-        self.user_interaction_tracer = UserInteractionTracer()
-        LLMTracerMixin.__init__(self)
-        ToolTracerMixin.__init__(self)
-        AgentTracerMixin.__init__(self)
-        CustomTracerMixin.__init__(self)
+        # self.user_interaction_tracer = UserInteractionTracer()
+        #LLMTracerMixin.__init__(self)
+        #ToolTracerMixin.__init__(self)
+        #AgentTracerMixin.__init__(self)
+        #CustomTracerMixin.__init__(self)
 
         self.project_name = user_detail["project_name"]
         self.project_id = user_detail["project_id"]
@@ -65,14 +64,14 @@ class AgenticTracing(
         # Add warning flag
         self._warning_shown = False
 
-        BaseTracer.__init__(self, user_detail)
+        #BaseTracer.__init__(self, user_detail)
 
         self.tools: Dict[str, Tool] = {}
         self.call_depth = contextvars.ContextVar("call_depth", default=0)
         self.current_component_id = contextvars.ContextVar(
             "current_component_id", default=None
         )
-        self.network_tracer = NetworkTracer()
+        # self.network_tracer = NetworkTracer()
 
         # Handle auto_instrumentation
         if auto_instrumentation is None:
