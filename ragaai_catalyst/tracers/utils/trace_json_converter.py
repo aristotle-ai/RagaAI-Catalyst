@@ -156,14 +156,14 @@ def convert_json_format(
 
                 # If prompt tokens or/and completion tokens are not present, will calculate it using tiktoken
                 try:
-                    if prompt_tokens == 0:
+                    if prompt_tokens == 0 and span["attributes"].get("openinference.span.kind") == "LLM" and span["status"].get("status_code") != "ERROR":
                         prompt_value = span["attributes"].get("input.value")
                         if prompt_value:
                             prompt_tokens = count_tokens(prompt_value)
                             logger.debug(
                                 f"Prompt tokens not present, calculated it: {prompt_tokens}"
                             )
-                    if completion_tokens == 0:
+                    if completion_tokens == 0 and span["attributes"].get("openinference.span.kind") == "LLM" and span["status"].get("status_code") != "ERROR" :
                         completion_value = span["attributes"].get("output.value")
                         if completion_value:
                             completion_tokens = count_tokens(completion_value)
