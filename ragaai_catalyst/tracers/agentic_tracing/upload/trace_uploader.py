@@ -19,6 +19,8 @@ import glob
 from logging.handlers import RotatingFileHandler
 import concurrent.futures
 from typing import Dict, Any, Optional
+import threading
+import uuid
 
 # Set up logging
 log_dir = os.path.join(tempfile.gettempdir(), "ragaai_logs")
@@ -65,19 +67,52 @@ STATUS_FAILED = "failed"
 
 # Global executor for handling uploads
 _executor = None
+_executor_lock = threading.Lock()
 # Dictionary to track futures and their associated task IDs
 _futures: Dict[str, Any] = {}
+_futures_lock = threading.Lock()
 
-def get_executor():
+
+_cleanup_lock = threading.Lock()
+_last_cleanup = 0
+CLEANUP_INTERVAL = 300  # 5 minutes
+
+# Thread-safe counter for task IDs
+_task_counter = 0
+_task_counter_lock = threading.Lock()
+
+def get_executor(max_workers=None):
     """Get or create the thread pool executor"""
     global _executor
-    if _executor is None:
-        _executor = concurrent.futures.ThreadPoolExecutor(max_workers=8, thread_name_prefix="trace_uploader")
-    return _executor
+    with _executor_lock:
+        if _executor is None:
+            # Calculate optimal worker count
+            if max_workers is None:
+                max_workers = min(32, (os.cpu_count() or 1) * 4)
+
+            logger.info(f"Creating ThreadPoolExecutor with {max_workers} workers")
+            _executor = concurrent.futures.ThreadPoolExecutor(
+                max_workers=max_workers,
+                thread_name_prefix="trace_uploader"
+            )
+            # atexit.register(shutdown)
+        return _executor
+
+
+def generate_unique_task_id():
+    """Generate a thread-safe unique task ID"""
+    global _task_counter
+
+    with _task_counter_lock:
+        _task_counter += 1
+        counter = _task_counter
+
+    unique_id = str(uuid.uuid4())[:8]  # Short UUID
+    return f"task_{int(time.time())}_{os.getpid()}_{counter}_{unique_id}"
 
 def process_upload(task_id: str, filepath: str, hash_id: str, zip_path: str, 
                   project_name: str, project_id: str, dataset_name: str, 
-                  user_details: Dict[str, Any], base_url: str, timeout=120) -> Dict[str, Any]:
+                  user_details: Dict[str, Any], base_url: str, timeout=120, fail_on_trace_error=True) -> Dict[str, Any]:
     """
     Process a single upload task
     
@@ -91,7 +126,7 @@ def process_upload(task_id: str, filepath: str, hash_id: str, zip_path: str,
         dataset_name: Dataset name
         user_details: User details dictionary
         base_url: Base URL for API calls
-        
+        fail_on_trace_error: If True, raise exception when trace upload fails
     Returns:
         Dict containing status and any error information
     """
@@ -176,13 +211,31 @@ def process_upload(task_id: str, filepath: str, hash_id: str, zip_path: str,
                     base_url=base_url,   
                     timeout=timeout
                 )
-                upload_traces.upload_agentic_traces()
-                logger.info("Agentic traces uploaded successfully")
+                upload_success = upload_traces.upload_agentic_traces()
+                if upload_success:
+                    logger.info("Agentic traces uploaded successfully")
+                else:
+                    error_msg = "Agentic traces upload failed"
+                    logger.error(error_msg)
+
+                    if fail_on_trace_error:
+                        result["status"] = STATUS_FAILED
+                        result["error"] = error_msg
+                        result["end_time"] = datetime.now().isoformat()
+                        save_task_status(result)
             except Exception as e:
                 logger.error(f"Error uploading agentic traces: {e}")
+
                 # Continue with code upload
         else:
+            error_msg = f"Trace file {filepath} not found"
             logger.warning(f"Trace file {filepath} not found, skipping traces upload")
+            if fail_on_trace_error:
+                result["status"] = STATUS_FAILED
+                result["error"] = error_msg
+                result["end_time"] = datetime.now().isoformat()
+                save_task_status(result)
+                logger.error(error_msg)
         
         # Step 4: Upload code hash
         if hash_id and zip_path and os.path.exists(zip_path):
@@ -216,6 +269,31 @@ def process_upload(task_id: str, filepath: str, hash_id: str, zip_path: str,
     # Save final status
     save_task_status(result)
     return result
+
+def cleanup_completed_futures():
+    """Remove completed futures to prevent memory leaks"""
+    global _futures, _last_cleanup
+
+    current_time = time.time()
+    if current_time - _last_cleanup < CLEANUP_INTERVAL:
+        return
+
+    with _cleanup_lock:
+        if current_time - _last_cleanup < CLEANUP_INTERVAL:
+            return  # Double-check after acquiring lock
+        with _futures_lock:
+            completed_tasks = []
+            for task_id, future in _futures.items():
+                if future.done():
+                    completed_tasks.append(task_id)
+
+            for task_id in completed_tasks:
+                del _futures[task_id]
+
+            _last_cleanup = current_time
+
+            if completed_tasks:
+                logger.info(f"Cleaned up {len(completed_tasks)} completed futures")
 
 def save_task_status(task_status: Dict[str, Any]):
     """Save task status to a file"""
@@ -253,38 +331,82 @@ def submit_upload_task(filepath, hash_id, zip_path, project_name, project_id, da
     filepath = os.path.abspath(filepath)
     logger.debug(f"Using absolute filepath: {filepath}")
 
-    # Generate a unique task ID
-    task_id = f"task_{int(time.time())}_{os.getpid()}_{hash(str(time.time()))}"
+    # Generate a thread-safe unique task ID
+    task_id = generate_unique_task_id()
+    logger.debug(f"Generated task ID: {task_id}")
+
+    # Function to handle synchronous processing
+    def do_sync_processing():
+        try:
+            logger.info(f"Processing task {task_id} synchronously...")
+            result = process_upload(
+                task_id=task_id,
+                filepath=filepath,
+                hash_id=hash_id,
+                zip_path=zip_path,
+                project_name=project_name,
+                project_id=project_id,
+                dataset_name=dataset_name,
+                user_details=user_details,
+                base_url=base_url,
+                timeout=timeout,
+                fail_on_trace_error=True
+            )
+            logger.info(f"Synchronous processing completed for {task_id}: {result}")
+            return task_id
+        except Exception as e:
+            logger.error(f"Error in synchronous processing: {e}")
+            return None
     
-    # Submit the task to the executor
+    # Try to get the executor
     executor = get_executor()
-    future = executor.submit(
-        process_upload,
-        task_id=task_id,
-        filepath=filepath,
-        hash_id=hash_id,
-        zip_path=zip_path,
-        project_name=project_name,
-        project_id=project_id,
-        dataset_name=dataset_name,
-        user_details=user_details,
-        base_url=base_url,
-        timeout=timeout
-    )
-    
-    # Store the future for later status checks
-    _futures[task_id] = future
-    
-    # Create initial status
-    initial_status = {
-        "task_id": task_id,
-        "status": STATUS_PENDING,
-        "error": None,
-        "start_time": datetime.now().isoformat()
-    }
-    save_task_status(initial_status)
-    
-    return task_id
+    if executor is None:
+        logger.warning("Executor is None or shutdown in progress, processing synchronously")
+        return do_sync_processing()
+    # Cleanup completed futures periodically
+    # cleanup_completed_futures()
+    # Try to submit the task to the executor
+    try:
+        # Cleanup completed futures periodically
+        future = executor.submit(
+            process_upload,
+            task_id=task_id,
+            filepath=filepath,
+            hash_id=hash_id,
+            zip_path=zip_path,
+            project_name=project_name,
+            project_id=project_id,
+            dataset_name=dataset_name,
+            user_details=user_details,
+            base_url=base_url,
+            timeout=timeout,
+            fail_on_trace_error=True
+        )
+        
+        # Store the future for later status checks
+        with _futures_lock:
+            _futures[task_id] = future
+        
+        # Create initial status
+        initial_status = {
+            "task_id": task_id,
+            "status": STATUS_PENDING,
+            "error": None,
+            "start_time": datetime.now().isoformat()
+        }
+        save_task_status(initial_status)
+        
+        return task_id
+    except RuntimeError as e:
+        if "cannot schedule new futures after shutdown" in str(e):
+            logger.warning(f"Executor already shut down, falling back to synchronous processing: {e}")
+            return do_sync_processing()
+        else:
+            logger.error(f"Error submitting task: {e}")
+            return None
+    except Exception as e:
+        logger.error(f"Error submitting task: {e}")
+        return None
 
 def get_task_status(task_id):
     """
@@ -299,7 +421,8 @@ def get_task_status(task_id):
     logger.debug(f"Getting status for task {task_id}")
     
     # Check if we have a future for this task
-    future = _futures.get(task_id)
+    with _futures_lock:
+        future = _futures.get(task_id)
     
     # If we have a future, check its status
     if future:
@@ -328,13 +451,104 @@ def get_task_status(task_id):
     
     return {"status": "unknown", "error": "Task not found"}
 
-def shutdown():
-    """Shutdown the executor"""
-    global _executor
-    if _executor:
-        logger.info("Shutting down executor")
-        _executor.shutdown(wait=True)
-        _executor = None
+
+def get_upload_queue_status():
+    """Get detailed status of upload queue"""
+    logger.info("Reached get queue status")
+    # with _executor_lock:
+    executor = get_executor()
+
+    if executor is None:
+        return {
+            "total_submitted": 0,
+            "pending_uploads": 0,
+            "completed_uploads": 0,
+            "failed_uploads": 0,
+            "thread_pool_queue_size": 0,
+            "active_workers": 0,
+            "max_workers": 0
+        }
+    # with _futures_lock:
+    pending_count = len([f for f in _futures.values() if not f.done()])
+    completed_count = len([f for f in _futures.values() if f.done() and not f.exception()])
+    failed_count = len([f for f in _futures.values() if f.done() and f.exception()])
+
+    # Try to get thread pool queue size (may not be available in all Python versions)
+    queue_size = 0
+    try:
+        if hasattr(executor, '_work_queue'):
+            queue_size = executor._work_queue.qsize()
+    except:
+        pass
+
+    return {
+        "total_submitted": len(_futures),
+        "pending_uploads": pending_count,
+        "completed_uploads": completed_count,
+        "failed_uploads": failed_count,
+        "thread_pool_queue_size": queue_size,
+        "active_workers": getattr(executor, '_threads', set()).__len__() if executor else 0,
+        "max_workers": executor._max_workers if executor else 0
+    }
+
+
+def shutdown(timeout=120):
+    """Enhanced shutdown with manual timeout and progress reporting"""
+    logger.debug("Reached shutdown of executor")
+    global _executor, _futures
+    with _executor_lock:
+        if _executor is None:
+            logger.debug("Executor is none in shutdown")
+            return
+
+    # Log current state
+    status = get_upload_queue_status()
+    logger.debug(f"Queue status: {status}")
+    logger.debug(f"Shutting down uploader. Pending uploads: {status['pending_uploads']}")
+
+    if status['pending_uploads'] > 0:
+        logger.debug(f"Waiting up to {timeout}s for {status['pending_uploads']} uploads to complete...")
+
+        start_time = time.time()
+        last_report = start_time
+
+        while time.time() - start_time < timeout:
+            # Check if all futures are done
+            with _futures_lock:
+                pending_futures = [f for f in _futures.values() if not f.done()]
+
+                if not pending_futures:
+                    logger.info("All uploads completed successfully")
+                    break
+
+                # Report progress every 10 seconds
+                current_time = time.time()
+                if current_time - last_report >= 10:
+                    elapsed = current_time - start_time
+                    remaining = timeout - elapsed
+                    logger.info(f"Still waiting for {len(pending_futures)} uploads to complete. "
+                                f"Time remaining: {remaining:.1f}s")
+                    last_report = current_time
+
+                # Sleep briefly to avoid busy waiting
+                time.sleep(0.5)
+        else:
+            # Timeout reached
+            logger.info("Executor timeout reached")
+            with _futures_lock:
+                pending_futures = [f for f in _futures.values() if not f.done()]
+                logger.debug(f"Shutdown timeout reached. {len(pending_futures)} uploads still pending.")
+    else:
+        logger.info(f"No pending uploads")
+
+    # Shutdown the executor
+    try:
+        _executor.shutdown(wait=False)  # Don't wait here since we already waited above
+        logger.info("Executor shutdown initiated")
+    except Exception as e:
+        logger.error(f"Error during executor shutdown: {e}")
+
+    _executor = None
 
 # Register shutdown handler
 atexit.register(shutdown)

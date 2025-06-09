@@ -144,7 +144,7 @@ class UploadAgenticTraces:
                 payload = f.read().replace("\n", "").replace("\r", "").encode()
         except Exception as e:
             print(f"Error while reading file: {e}")
-            return None
+            return False
         try:
             start_time = time.time()
             response = requests.request(
@@ -156,9 +156,10 @@ class UploadAgenticTraces:
             )
             if response.status_code != 200 or response.status_code != 201:
                 return response, response.status_code
+            return True
         except requests.exceptions.RequestException as e:
             print(f"Error while uploading to presigned url: {e}")
-            return None
+            return False
 
     def insert_traces(self, presignedUrl):
         headers = {
@@ -185,7 +186,7 @@ class UploadAgenticTraces:
             )
             if response.status_code != 200:
                 print(f"Error inserting traces: {response.json()['message']}")
-                return None
+                return False
             elif response.status_code == 401:
                 logger.warning("Received 401 error. Attempting to refresh token.")
                 token = RagaAICatalyst.get_token(force_refresh=True)
@@ -207,10 +208,12 @@ class UploadAgenticTraces:
                 )
                 if response.status_code != 200:
                     print(f"Error inserting traces: {response.json()['message']}")
-                    return None
+                    return False
                 else:
                     print("Error while inserting traces")
-                    return None
+                    return False
+            else:
+                return True
         except requests.exceptions.RequestException as e:
             print(f"Error while inserting traces: {e}")
             return None
@@ -247,10 +250,35 @@ class UploadAgenticTraces:
 
     def upload_agentic_traces(self):
         try:
-            presignedUrl = self._get_presigned_url()
-            if presignedUrl is None:
-                return
-            self._put_presigned_url(presignedUrl, self.json_file_path)
-            self.insert_traces(presignedUrl)
+            presigned_url = self._get_presigned_url()
+            if presigned_url is None:
+                print("Warning: Failed to obtain presigned URL")
+                return False
+
+            # Upload the file using the presigned URL
+            upload_result = self._put_presigned_url(presigned_url, self.json_file_path)
+            if not upload_result:
+                print("Error: Failed to upload file to presigned URL")
+                return False
+            elif isinstance(upload_result, tuple):
+                response, status_code = upload_result
+                if status_code not in [200, 201]:
+                    print(
+                        f"Error: Upload failed with status code {status_code}: {response.text if hasattr(response, 'text') else 'Unknown error'}")
+                    return False
+            # Insert trace records
+            insert_success = self.insert_traces(presigned_url)
+            if not insert_success:
+                print("Error: Failed to insert trace records")
+                return False
+
+            print("Successfully uploaded agentic traces")
+            return True
+        except FileNotFoundError:
+            print(f"Error: Trace file not found at {self.json_file_path}")
+            return False
+        except ConnectionError as e:
+            print(f"Error: Network connection failed while uploading traces: {e}")
+            return False
         except Exception as e:
             print(f"Error while uploading agentic traces: {e}")
