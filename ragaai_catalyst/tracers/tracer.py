@@ -482,23 +482,13 @@ class Tracer(AgenticTracing):
 
     
     def set_external_id(self, external_id):
-        current_params = {
-            'project_name': self.project_name,
-            'dataset_name': self.dataset_name,
-            'trace_name': self.trace_name,
-            'tracer_type': self.tracer_type,
-            'pipeline': self.pipeline,
-            'metadata': self.metadata,
-            'description': self.description,
-            'timeout': self.timeout,
-            'update_llm_cost': self.update_llm_cost,
-            'auto_instrumentation': self.auto_instrumentation,
-            'interval_time': self.interval_time,
-            'max_upload_workers': self.max_upload_workers
-        }
-
+        """
+        This method updates the external_id attribute of the dynamic exporter.
+        Args:
+            external_id (str): The new external_id to set
+        """
         self.dynamic_exporter.external_id = external_id
-        logger.debug(f"Updated external_id to {external_id}")
+        logger.debug(f"Updated dynamic exporter's external_id to {external_id}")
 
     def set_dataset_name(self, dataset_name):
         """
