@@ -170,19 +170,6 @@ class Tracer(AgenticTracing):
         except requests.exceptions.RequestException as e:
             logger.error(f"Failed to retrieve projects list: {e}")
 
-        # if tracer_type == "langchain":
-        #     instrumentors = []
-        #     from openinference.instrumentation.langchain import LangChainInstrumentor
-        #     instrumentors += [(LangChainInstrumentor, [])]
-        #     self._setup_agentic_tracer(instrumentors)
-        # elif tracer_type == "llamaindex":
-        #     self._upload_task = None
-        #     self.llamaindex_tracer = None
-        # elif tracer_type == "rag/langchain":
-        #     instrumentors = []
-        #     from openinference.instrumentation.langchain import LangChainInstrumentor
-        #     instrumentors += [(LangChainInstrumentor, [])]
-        #     self._setup_agentic_tracer(instrumentors)
         # Handle agentic tracers
         if tracer_type == "agentic" or tracer_type.startswith("agentic/") or tracer_type == "langchain":
             # Setup instrumentors based on tracer type
