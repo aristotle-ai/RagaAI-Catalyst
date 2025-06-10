@@ -192,12 +192,12 @@ class Tracer(AgenticTracing):
         #     instrumentors += [(LangChainInstrumentor, [])]
         #     self._setup_agentic_tracer(instrumentors)
         # Handle agentic tracers
-        if tracer_type == "agentic" or tracer_type.startswith("agentic/") or tracer_type == "langchain":
+        if tracer_type == "agentic" or tracer_type.startswith("agentic/") or tracer_type == "langchain" or tracer_type == "llm":
             # Setup instrumentors based on tracer type
             instrumentors = []
 
             # Add LLM Instrumentors
-            if tracer_type in ['agentic/crewai']:
+            if tracer_type in ['agentic/crewai', 'llm']:
                 try:
                     from openinference.instrumentation.vertexai import VertexAIInstrumentor
                     instrumentors.append((VertexAIInstrumentor, []))
@@ -235,7 +235,10 @@ class Tracer(AgenticTracing):
                     logger.debug("Bedrock not available in environment")
             
             # If tracer_type is just "agentic", try to instrument all available packages
-            if tracer_type == "agentic":
+            if tracer_type == "llm":
+                logger.info("Already instrumented all available llm packages")
+                pass
+            elif tracer_type == "agentic":
                 logger.info("Attempting to instrument all available agentic packages")
                 
                 # Try to import and add all known instrumentors
