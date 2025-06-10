@@ -36,9 +36,7 @@ from ..data.data_structure import (
 from ....ragaai_catalyst import RagaAICatalyst
 
 
-class AgenticTracing(
-#    BaseTracer, LLMTracerMixin, ToolTracerMixin, AgentTracerMixin, CustomTracerMixin
-):
+class AgenticTracing():
     def __init__(self, user_detail, auto_instrumentation=None, timeout=120):
         self.project_name = user_detail["project_name"]
         self.project_id = user_detail["project_id"]
