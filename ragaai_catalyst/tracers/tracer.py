@@ -19,7 +19,6 @@ from ragaai_catalyst.tracers.utils import get_unique_key
 from openinference.instrumentation.langchain import LangChainInstrumentor
 from ragaai_catalyst import RagaAICatalyst
 from ragaai_catalyst.tracers.agentic_tracing import AgenticTracing
-#from ragaai_catalyst.tracers.agentic_tracing.tracers.llm_tracer import LLMTracerMixin
 from ragaai_catalyst.tracers.exporters.ragaai_trace_exporter import RAGATraceExporter
 from ragaai_catalyst.tracers.agentic_tracing.utils.file_name_tracker import TrackName
 
