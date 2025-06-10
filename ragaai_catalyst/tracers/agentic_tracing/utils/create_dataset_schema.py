@@ -2,7 +2,7 @@ import os
 import json
 import re
 import requests
-from ....ragaai_catalyst import RagaAICatalyst
+from ragaai_catalyst import RagaAICatalyst
 
 def create_dataset_schema_with_trace(project_name, dataset_name, base_url=None, user_details=None, timeout=120):
     SCHEMA_MAPPING = {}
