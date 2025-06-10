@@ -334,8 +334,11 @@ class Tracer(AgenticTracing):
 
             elif tracer_type == "agentic/openai_agents":
                 from openinference.instrumentation.openai_agents import OpenAIAgentsInstrumentor
-                instrumentors += [(OpenAIAgentsInstrumentor, [])] 
+                instrumentors += [(OpenAIAgentsInstrumentor, [])]
             
+            elif tracer_type == "google-adk":
+                from  openinference.instrumentation.google_adk import GoogleADKInstrumentor
+                instrumentors += [(GoogleADKInstrumentor, [])]
             else:
                 # Unknown agentic tracer type
                 logger.warning(f"Unknown agentic tracer type: {tracer_type}")

@@ -57,6 +57,7 @@ dependencies = [
     "openinference-instrumentation-haystack",
     "openinference-instrumentation-openai-agents",
     "openinference-instrumentation-smolagents",
+    "openinference-instrumentation-google-adk@git+https://github.com/Arize-ai/openinference.git@google-adk-instrumentor#subdirectory=python/instrumentation/openinference-instrumentation-google-adk",
     "opentelemetry-sdk",
     "opentelemetry-exporter-otlp",
     "opentelemetry-proto>=1.12.0",
