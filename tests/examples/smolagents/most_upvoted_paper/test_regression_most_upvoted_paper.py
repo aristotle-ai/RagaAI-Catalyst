@@ -13,7 +13,7 @@ def run_diagnosis_agent():
     """Run the diagnosis_agent.py script and capture its output"""
     script_path = os.path.join(
         Path(__file__).resolve().parent,
-        "research_assistant.py"
+        "most_upvoted_paper.py"
     )
     
     result = subprocess.run(
