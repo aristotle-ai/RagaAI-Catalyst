@@ -104,7 +104,7 @@ class AgenticTracing():
         Pass through the post-processor registration to the BaseTracer
         """
         if not callable(post_processor_func):
-            raise TypeError("post_processor_func must be a callable")
+            logging.error("post_processor_func must be a callable")
         self.post_processor = post_processor_func
 
     def __enter__(self):
