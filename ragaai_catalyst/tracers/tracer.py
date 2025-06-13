@@ -127,9 +127,11 @@ class Tracer(AgenticTracing):
         self.model_custom_cost = {}
         super().__init__(user_detail=user_detail, auto_instrumentation=auto_instrumentation)
 
+        logger.debug(f"Setting up Tracer instance with project: {project_name}, dataset: {dataset_name}")
         self.project_name = project_name
         self.dataset_name = dataset_name
         self.tracer_type = tracer_type
+        logger.debug(f"Tracer type set to: {tracer_type}")
         self.metadata = self._improve_metadata(metadata, tracer_type)
         # self.metadata["total_cost"] = 0.0
         # self.metadata["total_tokens"] = 0
@@ -146,12 +148,16 @@ class Tracer(AgenticTracing):
         self.file_tracker = TrackName()
         self.post_processor = None
         self.max_upload_workers = max_upload_workers
+        logger.debug(f"Max upload workers: {self.max_upload_workers}")
         self.user_details = self._pass_user_data()
         self.update_llm_cost = update_llm_cost
         self.auto_instrumentation = auto_instrumentation
         self.external_id = external_id
+        if external_id:
+            logger.debug(f"External ID provided: {external_id}")
         
         try:
+            logger.debug(f"Fetching projects list from {self.base_url}/v2/llm/projects")
             response = requests.get(
                 f"{self.base_url}/v2/llm/projects?size={self.num_projects}",
                 headers={
@@ -165,8 +171,13 @@ class Tracer(AgenticTracing):
             project_list = [
                 project["name"] for project in response.json()["data"]["content"]
             ]
+            logger.debug(f"Found {len(project_list)} projects")
             if project_name not in project_list:
-                logger.error("Project not found. Please enter a valid project name")
+                logger.warning(f"Project '{project_name}' not found in available projects")
+                logger.debug(f"Available projects: {project_list}")
+            else:
+                logger.debug(f"Project '{project_name}' found in available projects")
+                
             
             self.project_id = [
                 project["id"] for project in response.json()["data"]["content"] if project["name"] == project_name
@@ -177,6 +188,7 @@ class Tracer(AgenticTracing):
 
         except requests.exceptions.RequestException as e:
             logger.error(f"Failed to retrieve projects list: {e}")
+            logger.debug(f"Request exception details: {str(e)}, URL: {self.base_url}/v2/llm/projects")
 
         # if tracer_type == "langchain":
         #     instrumentors = []
@@ -191,13 +203,16 @@ class Tracer(AgenticTracing):
         #     from openinference.instrumentation.langchain import LangChainInstrumentor
         #     instrumentors += [(LangChainInstrumentor, [])]
         #     self._setup_agentic_tracer(instrumentors)
+
         # Handle agentic tracers
+        logger.debug(f"Starting Instrumentation for tracer type: {tracer_type}")
         if tracer_type == "agentic" or tracer_type.startswith("agentic/") or tracer_type == "langchain":
             # Setup instrumentors based on tracer type
             instrumentors = []
 
             # Add LLM Instrumentors
             if tracer_type in ['agentic/crewai']:
+                logger.debug("Setting up instrumentors for CrewAI")
                 try:
                     from openinference.instrumentation.vertexai import VertexAIInstrumentor
                     instrumentors.append((VertexAIInstrumentor, []))
@@ -310,31 +325,38 @@ class Tracer(AgenticTracing):
             elif tracer_type == "agentic/llamaindex" or tracer_type == "llamaindex":
                 from openinference.instrumentation.llama_index import LlamaIndexInstrumentor
                 instrumentors += [(LlamaIndexInstrumentor, [])] 
+                logger.info("Instrumenting LlamaIndex...")
 
             elif tracer_type == "agentic/langchain" or tracer_type == "agentic/langgraph" or tracer_type == "langchain":
                 from openinference.instrumentation.langchain import LangChainInstrumentor
                 instrumentors += [(LangChainInstrumentor, [])]
+                logger.info("Instrumenting LangChain...")
             
             elif tracer_type == "agentic/crewai":
                 from openinference.instrumentation.crewai import CrewAIInstrumentor
                 from openinference.instrumentation.langchain import LangChainInstrumentor
                 instrumentors += [(CrewAIInstrumentor, []), (LangChainInstrumentor, [])]
+                logger.info("Instrumenting CrewAI...")
             
             elif tracer_type == "agentic/haystack":
                 from openinference.instrumentation.haystack import HaystackInstrumentor
                 instrumentors += [(HaystackInstrumentor, [])]
+                logger.info("Instrumenting Haystack...")
             
             elif tracer_type == "agentic/autogen":
                 from openinference.instrumentation.autogen import AutogenInstrumentor
                 instrumentors += [(AutogenInstrumentor, [])]
+                logger.info("Instrumenting Autogen...")
             
             elif tracer_type == "agentic/smolagents":
                 from openinference.instrumentation.smolagents import SmolagentsInstrumentor
                 instrumentors += [(SmolagentsInstrumentor, [])]
+                logger.info("Instrumenting Smolagents...")
 
             elif tracer_type == "agentic/openai_agents":
                 from openinference.instrumentation.openai_agents import OpenAIAgentsInstrumentor
                 instrumentors += [(OpenAIAgentsInstrumentor, [])] 
+                logger.info("Instrumenting OpenAI Agents...")
             
             else:
                 # Unknown agentic tracer type
