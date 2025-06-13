@@ -8,6 +8,9 @@ from urllib.parse import urlparse, urlunparse
 import requests
 
 logger = logging.getLogger(__name__)
+logging_level = (
+    logger.setLevel(logging.DEBUG) if os.getenv("DEBUG") == "1" else logging.INFO
+)
 
 from ragaai_catalyst.ragaai_catalyst import RagaAICatalyst
 
@@ -43,6 +46,7 @@ class UploadAgenticTraces:
             "Authorization": f"Bearer {os.getenv('RAGAAI_CATALYST_TOKEN')}",
             "X-Project-Name": self.project_name,
         }
+        logger.debug("Started getting presigned url: ")
 
         try:
             start_time = time.time()
@@ -58,7 +62,9 @@ class UploadAgenticTraces:
 
             if response.status_code == 200:
                 presignedURLs = response.json()["data"]["presignedUrls"][0]
+                logger.debug(f"Got presigned url: {presignedURLs}")
                 presignedurl = self.update_presigned_url(presignedURLs, self.base_url)
+                logger.debug(f"Updated presigned url: {presignedurl}")
                 return presignedurl
             else:
                 # If POST fails, try GET
@@ -71,9 +77,11 @@ class UploadAgenticTraces:
                 )
                 if response.status_code == 200:
                     presignedURLs = response.json()["data"]["presignedUrls"][0]
+                    logger.debug(f"Got presigned url: {presignedURLs}")
                     presignedurl = self.update_presigned_url(
                         presignedURLs, self.base_url
                     )
+                    logger.debug(f"Updated presigned url: {presignedurl}")
                     return presignedurl
                 elif response.status_code == 401:
                     logger.warning("Received 401 error. Attempting to refresh token.")
@@ -96,9 +104,11 @@ class UploadAgenticTraces:
                     )
                     if response.status_code == 200:
                         presignedURLs = response.json()["data"]["presignedUrls"][0]
+                        logger.debug(f"Got presigned url: {presignedURLs}")
                         presignedurl = self.update_presigned_url(
                             presignedURLs, self.base_url
                         )
+                        logger.debug(f"Updated presigned url: {presignedurl}")
                         return presignedurl
                     else:
                         logger.error(
@@ -174,6 +184,7 @@ class UploadAgenticTraces:
                 "datasetSpans": self._get_dataset_spans(),  # Extra key for agentic traces
             }
         )
+        logger.debug(f"Inserting agentic traces to presigned url: {presignedUrl}")
         try:
             start_time = time.time()
             endpoint = f"{self.base_url}/v1/llm/insert/trace"
@@ -186,6 +197,7 @@ class UploadAgenticTraces:
             )
             if response.status_code != 200:
                 print(f"Error inserting traces: {response.json()['message']}")
+                logger.debug(f"Error inserting traces: {response.json()['message']}")
                 return False
             elif response.status_code == 401:
                 logger.warning("Received 401 error. Attempting to refresh token.")
@@ -208,14 +220,17 @@ class UploadAgenticTraces:
                 )
                 if response.status_code != 200:
                     print(f"Error inserting traces: {response.json()['message']}")
+                    logger.debug(f"Error inserting traces: {response.json()['message']}")
                     return False
                 else:
                     print("Error while inserting traces")
+                    logger.debug("Error while inserting traces")
                     return False
             else:
                 return True
         except requests.exceptions.RequestException as e:
             print(f"Error while inserting traces: {e}")
+            logger.debug(f"Error while inserting traces: {e}")
             return None
 
     def _get_dataset_spans(self):
