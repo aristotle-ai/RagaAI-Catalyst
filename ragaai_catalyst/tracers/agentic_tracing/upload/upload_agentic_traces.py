@@ -59,7 +59,6 @@ class UploadAgenticTraces:
             logger.debug(
                 f"API Call: [POST] {endpoint} | Status: {response.status_code} | Time: {elapsed_ms:.2f}ms"
             )
-            # import pdb; pdb.set_trace()
             if response.status_code in [200, 201]:
                 presignedURLs = response.json()["data"]["presignedUrls"][0]
                 logger.debug(f"Got presigned url: {presignedURLs}")
