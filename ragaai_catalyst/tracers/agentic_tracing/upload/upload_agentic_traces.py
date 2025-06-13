@@ -59,8 +59,8 @@ class UploadAgenticTraces:
             logger.debug(
                 f"API Call: [POST] {endpoint} | Status: {response.status_code} | Time: {elapsed_ms:.2f}ms"
             )
-
-            if response.status_code == 200:
+            # import pdb; pdb.set_trace()
+            if response.status_code in [200, 201]:
                 presignedURLs = response.json()["data"]["presignedUrls"][0]
                 logger.debug(f"Got presigned url: {presignedURLs}")
                 presignedurl = self.update_presigned_url(presignedURLs, self.base_url)
@@ -75,7 +75,7 @@ class UploadAgenticTraces:
                 logger.debug(
                     f"API Call: [GET] {endpoint} | Status: {response.status_code} | Time: {elapsed_ms:.2f}ms"
                 )
-                if response.status_code == 200:
+                if response.status_code in [200, 201]:
                     presignedURLs = response.json()["data"]["presignedUrls"][0]
                     logger.debug(f"Got presigned url: {presignedURLs}")
                     presignedurl = self.update_presigned_url(
@@ -102,7 +102,7 @@ class UploadAgenticTraces:
                     logger.debug(
                         f"API Call: [POST] {endpoint} | Status: {response.status_code} | Time: {elapsed_ms:.2f}ms"
                     )
-                    if response.status_code == 200:
+                    if response.status_code in [200, 201]:
                         presignedURLs = response.json()["data"]["presignedUrls"][0]
                         logger.debug(f"Got presigned url: {presignedURLs}")
                         presignedurl = self.update_presigned_url(
@@ -195,10 +195,9 @@ class UploadAgenticTraces:
             logger.debug(
                 f"API Call: [POST] {endpoint} | Status: {response.status_code} | Time: {elapsed_ms:.2f}ms"
             )
-            if response.status_code != 200:
-                print(f"Error inserting traces: {response.json()['message']}")
-                logger.debug(f"Error inserting traces: {response.json()['message']}")
-                return False
+            if response.status_code in [200, 201]:
+                logger.debug("Successfully inserted traces")
+                return True
             elif response.status_code == 401:
                 logger.warning("Received 401 error. Attempting to refresh token.")
                 token = RagaAICatalyst.get_token(force_refresh=True)
@@ -218,18 +217,16 @@ class UploadAgenticTraces:
                 logger.debug(
                     f"API Call: [POST] {endpoint} | Status: {response.status_code} | Time: {elapsed_ms:.2f}ms"
                 )
-                if response.status_code != 200:
-                    print(f"Error inserting traces: {response.json()['message']}")
-                    logger.debug(f"Error inserting traces: {response.json()['message']}")
-                    return False
+                if response.status_code in [200, 201]:
+                    logger.debug("Successfully inserted traces")
+                    return True
                 else:
-                    print("Error while inserting traces")
                     logger.debug("Error while inserting traces")
                     return False
             else:
-                return True
+                logger.debug("Error while inserting traces")
+                return False
         except requests.exceptions.RequestException as e:
-            print(f"Error while inserting traces: {e}")
             logger.debug(f"Error while inserting traces: {e}")
             return None
 
@@ -238,7 +235,7 @@ class UploadAgenticTraces:
             with open(self.json_file_path) as f:
                 data = json.load(f)
         except Exception as e:
-            print(f"Error while reading file: {e}")
+            logger.debug(f"Error while reading file: {e}")
             return None
         try:
             spans = data["data"][0]["spans"]
@@ -260,40 +257,41 @@ class UploadAgenticTraces:
                     continue
             return dataset_spans
         except Exception as e:
-            print(f"Error while reading dataset spans: {e}")
+            logger.debug(f"Error while reading dataset spans: {e}")
             return None
 
     def upload_agentic_traces(self):
         try:
             presigned_url = self._get_presigned_url()
             if presigned_url is None:
-                print("Warning: Failed to obtain presigned URL")
+                logger.debug("Warning: Failed to obtain presigned URL")
                 return False
 
             # Upload the file using the presigned URL
             upload_result = self._put_presigned_url(presigned_url, self.json_file_path)
             if not upload_result:
-                print("Error: Failed to upload file to presigned URL")
+                logger.debug("Error: Failed to upload file to presigned URL")
                 return False
             elif isinstance(upload_result, tuple):
                 response, status_code = upload_result
                 if status_code not in [200, 201]:
-                    print(
+                    logger.debug(
                         f"Error: Upload failed with status code {status_code}: {response.text if hasattr(response, 'text') else 'Unknown error'}")
                     return False
             # Insert trace records
             insert_success = self.insert_traces(presigned_url)
             if not insert_success:
-                print("Error: Failed to insert trace records")
+                logger.debug("Error: Failed to insert trace records")
                 return False
 
-            print("Successfully uploaded agentic traces")
+            logger.debug("Successfully uploaded agentic traces")
             return True
         except FileNotFoundError:
-            print(f"Error: Trace file not found at {self.json_file_path}")
+            logger.debug(f"Error: Trace file not found at {self.json_file_path}")
             return False
         except ConnectionError as e:
-            print(f"Error: Network connection failed while uploading traces: {e}")
+            logger.debug(f"Error: Network connection failed while uploading traces: {e}")
             return False
         except Exception as e:
-            print(f"Error while uploading agentic traces: {e}")
+            logger.debug(f"Error while uploading agentic traces: {e}")
+            return False
