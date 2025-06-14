@@ -4,6 +4,9 @@ import os
 import re
 import time
 from urllib.parse import urlparse, urlunparse
+from urllib3.exceptions import PoolError, MaxRetryError, NewConnectionError
+from requests.exceptions import ConnectionError, Timeout, RequestException
+from .session_manager import session_manager
 
 import requests
 
@@ -48,7 +51,7 @@ class UploadAgenticTraces:
             start_time = time.time()
             endpoint = f"{self.base_url}/v1/llm/presigned-url"
             # Changed to POST from GET
-            response = requests.request(
+            response = session_manager.session.request(
                 "POST", endpoint, headers=headers, data=payload, timeout=self.timeout
             )
             elapsed_ms = (time.time() - start_time) * 1000
@@ -62,7 +65,7 @@ class UploadAgenticTraces:
                 return presignedurl
             else:
                 # If POST fails, try GET
-                response = requests.request(
+                response = session_manager.session.request(
                     "GET", endpoint, headers=headers, data=payload, timeout=self.timeout
                 )
                 elapsed_ms = (time.time() - start_time) * 1000
@@ -83,7 +86,7 @@ class UploadAgenticTraces:
                         "Authorization": f"Bearer {token}",
                         "X-Project-Name": self.project_name,
                     }
-                    response = requests.request(
+                    response = session_manager.session.request(
                         "POST",
                         endpoint,
                         headers=headers,
@@ -110,8 +113,10 @@ class UploadAgenticTraces:
                         f"Error while getting presigned url: {response.json()['message']}"
                     )
                     return None
-
-        except requests.exceptions.RequestException as e:
+        except (PoolError, MaxRetryError, NewConnectionError, ConnectionError, Timeout) as e:
+            session_manager.handle_request_exceptions(e, "getting presigned URL")
+            return None
+        except RequestException as e:
             logger.error(f"Error while getting presigned url: {e}")
             return None
 
@@ -147,7 +152,7 @@ class UploadAgenticTraces:
             return False
         try:
             start_time = time.time()
-            response = requests.request(
+            response = session_manager.session.request(
                 "PUT", presignedUrl, headers=headers, data=payload, timeout=self.timeout
             )
             elapsed_ms = (time.time() - start_time) * 1000
@@ -157,7 +162,10 @@ class UploadAgenticTraces:
             if response.status_code != 200 or response.status_code != 201:
                 return response, response.status_code
             return True
-        except requests.exceptions.RequestException as e:
+        except (PoolError, MaxRetryError, NewConnectionError, ConnectionError, Timeout) as e:
+            session_manager.handle_request_exceptions(e, "uploading to presigned URL")
+            return False
+        except RequestException as e:
             print(f"Error while uploading to presigned url: {e}")
             return False
 
@@ -177,16 +185,16 @@ class UploadAgenticTraces:
         try:
             start_time = time.time()
             endpoint = f"{self.base_url}/v1/llm/insert/trace"
-            response = requests.request(
+            response = session_manager.session.request(
                 "POST", endpoint, headers=headers, data=payload, timeout=self.timeout
             )
             elapsed_ms = (time.time() - start_time) * 1000
             logger.debug(
                 f"API Call: [POST] {endpoint} | Status: {response.status_code} | Time: {elapsed_ms:.2f}ms"
             )
-            if response.status_code != 200:
-                print(f"Error inserting traces: {response.json()['message']}")
-                return False
+            if response.status_code in [200, 201]:
+                logger.info(f"Traces inserted successfully: {response.json()['message']}")
+                return True
             elif response.status_code == 401:
                 logger.warning("Received 401 error. Attempting to refresh token.")
                 token = RagaAICatalyst.get_token(force_refresh=True)
@@ -195,7 +203,7 @@ class UploadAgenticTraces:
                     "Content-Type": "application/json",
                     "X-Project-Name": self.project_name,
                 }
-                response = requests.request(
+                response = session_manager.session.request(
                     "POST",
                     endpoint,
                     headers=headers,
@@ -206,17 +214,21 @@ class UploadAgenticTraces:
                 logger.debug(
                     f"API Call: [POST] {endpoint} | Status: {response.status_code} | Time: {elapsed_ms:.2f}ms"
                 )
-                if response.status_code != 200:
-                    print(f"Error inserting traces: {response.json()['message']}")
-                    return False
+                if response.status_code in [200, 201]:
+                    logger.info(f"Traces inserted successfully: {response.json()['message']}")
+                    return True
                 else:
-                    print("Error while inserting traces")
+                    logger.error(f"Error while inserting traces after 401: {response.json()['message']}")
                     return False
             else:
-                return True
-        except requests.exceptions.RequestException as e:
+                logger.error(f"Error while inserting traces: {response.json()['message']}")
+                return False
+        except (PoolError, MaxRetryError, NewConnectionError, ConnectionError, Timeout) as e:
+            session_manager.handle_request_exceptions(e, "inserting traces")
+            return False
+        except RequestException as e:
             print(f"Error while inserting traces: {e}")
-            return None
+            return False
 
     def _get_dataset_spans(self):
         try:
@@ -282,3 +294,4 @@ class UploadAgenticTraces:
             return False
         except Exception as e:
             print(f"Error while uploading agentic traces: {e}")
+            return False
