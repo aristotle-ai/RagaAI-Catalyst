@@ -143,12 +143,12 @@ class UploadAgenticTraces:
 
         if "blob.core.windows.net" in presignedUrl:  # Azure
             headers["x-ms-blob-type"] = "BlockBlob"
-        print("Uploading agentic traces...")
+        logger.info("Uploading agentic traces to presigned URL...")
         try:
             with open(filename) as f:
                 payload = f.read().replace("\n", "").replace("\r", "").encode()
         except Exception as e:
-            print(f"Error while reading file: {e}")
+            logger.error(f"Error while reading file: {e}")
             return False
         try:
             start_time = time.time()
@@ -163,10 +163,10 @@ class UploadAgenticTraces:
                 return response, response.status_code
             return True
         except (PoolError, MaxRetryError, NewConnectionError, ConnectionError, Timeout) as e:
-            session_manager.handle_request_exceptions(e, "uploading to presigned URL")
+            session_manager.handle_request_exceptions(e, "uploading trace to presigned URL")
             return False
         except RequestException as e:
-            print(f"Error while uploading to presigned url: {e}")
+            logger.error(f"Error while uploading trace to presigned url: {e}")
             return False
 
     def insert_traces(self, presignedUrl):
@@ -227,7 +227,7 @@ class UploadAgenticTraces:
             session_manager.handle_request_exceptions(e, "inserting traces")
             return False
         except RequestException as e:
-            print(f"Error while inserting traces: {e}")
+            logger.error(f"Error while inserting traces: {e}")
             return False
 
     def _get_dataset_spans(self):
@@ -257,26 +257,26 @@ class UploadAgenticTraces:
                     continue
             return dataset_spans
         except Exception as e:
-            print(f"Error while reading dataset spans: {e}")
+            logger.error(f"Error while reading dataset spans: {e}")
             return None
 
     def upload_agentic_traces(self):
         try:
             presigned_url = self._get_presigned_url()
             if presigned_url is None:
-                print("Warning: Failed to obtain presigned URL")
+                logger.warning("Warning: Failed to obtain presigned URL")
                 return False
 
             # Upload the file using the presigned URL
             upload_result = self._put_presigned_url(presigned_url, self.json_file_path)
             if not upload_result:
-                print("Error: Failed to upload file to presigned URL")
+                logger.error("Error: Failed to upload file to presigned URL")
                 return False
             elif isinstance(upload_result, tuple):
                 response, status_code = upload_result
                 if status_code not in [200, 201]:
-                    print(
-                        f"Error: Upload failed with status code {status_code}: {response.text if hasattr(response, 'text') else 'Unknown error'}")
+                    logger.error(
+                        f"Error: Uploading agentic traces failed with status code {status_code}: {response.text if hasattr(response, 'text') else 'Unknown error'}")
                     return False
             # Insert trace records
             insert_success = self.insert_traces(presigned_url)

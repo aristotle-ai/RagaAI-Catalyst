@@ -1,4 +1,6 @@
 import logging
+import threading
+
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 from urllib3.exceptions import PoolError, MaxRetryError, NewConnectionError
@@ -12,11 +14,14 @@ class SessionManager:
     """Shared session manager with connection pooling for HTTP requests"""
     _instance = None
     _session = None
+    _lock = threading.Lock()
 
     def __new__(cls):
         if cls._instance is None:
-            cls._instance = super(SessionManager, cls).__new__(cls)
-            cls._instance._initialize_session()
+            with cls._lock:  # Thread-safe singleton
+                if cls._instance is None:  # Double-check locking
+                    cls._instance = super(SessionManager, cls).__new__(cls)
+                    cls._instance._initialize_session()
         return cls._instance
 
     def _initialize_session(self):
@@ -29,9 +34,9 @@ class SessionManager:
         )
         adapter = HTTPAdapter(
             max_retries=retry_strategy,
-            pool_connections=10,  # number of connections to keep in the pool
-            pool_maxsize=10,  # maximum number of connections in the pool
-            pool_block=False  # don't block when pool is full
+            pool_connections=2,  # number of connections to keep in the pool
+            pool_maxsize=50,  # maximum number of connections in the pool
+            pool_block=True
         )
         self._session.mount("http://", adapter)
         self._session.mount("https://", adapter)

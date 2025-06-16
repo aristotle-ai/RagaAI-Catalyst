@@ -249,7 +249,11 @@ def process_upload(task_id: str, filepath: str, hash_id: str, zip_path: str,
                     base_url=base_url,
                     timeout=timeout
                 )
-                logger.info(f"Code hash uploaded: {response}")
+                if response is None:
+                    error_msg = "Code hash not uploaded"
+                    logger.error(error_msg)
+                else:
+                    logger.info(f"Code hash uploaded successfully: {response}")
             except Exception as e:
                 logger.error(f"Error uploading code hash: {e}")
         else:
