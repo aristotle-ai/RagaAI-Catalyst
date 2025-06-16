@@ -284,14 +284,14 @@ class UploadAgenticTraces:
                 print("Error: Failed to insert trace records")
                 return False
 
-            print("Successfully uploaded agentic traces")
+            logger.info("Successfully uploaded agentic traces")
             return True
         except FileNotFoundError:
-            print(f"Error: Trace file not found at {self.json_file_path}")
+            logger.error(f"Error: Trace file not found at {self.json_file_path}")
             return False
         except ConnectionError as e:
-            print(f"Error: Network connection failed while uploading traces: {e}")
+            logger.error(f"Error: Network connection failed while uploading traces: {e}")
             return False
         except Exception as e:
-            print(f"Error while uploading agentic traces: {e}")
+            logger.error(f"Error while uploading agentic traces: {e}")
             return False
