@@ -22,6 +22,7 @@ from typing import Dict, Any, Optional
 import threading
 import uuid
 
+
 # Set up logging
 log_dir = os.path.join(tempfile.gettempdir(), "ragaai_logs")
 os.makedirs(log_dir, exist_ok=True)
@@ -49,11 +50,13 @@ try:
     from ragaai_catalyst.tracers.agentic_tracing.upload.upload_code import upload_code
     # from ragaai_catalyst.tracers.agentic_tracing.upload.upload_trace_metric import upload_trace_metric
     from ragaai_catalyst.tracers.agentic_tracing.utils.create_dataset_schema import create_dataset_schema_with_trace
+    from ragaai_catalyst.tracers.agentic_tracing.upload.session_manager import session_manager
     from ragaai_catalyst import RagaAICatalyst
     IMPORTS_AVAILABLE = True
 except ImportError:
     logger.warning("RagaAI Catalyst imports not available - running in test mode")
     IMPORTS_AVAILABLE = False
+    session_manager = None
 
 # Define task queue directory
 QUEUE_DIR = os.path.join(tempfile.gettempdir(), "ragaai_tasks")
@@ -72,6 +75,10 @@ _executor_lock = threading.Lock()
 _futures: Dict[str, Any] = {}
 _futures_lock = threading.Lock()
 
+# Dataset creation cache to avoid redundant API calls
+_dataset_cache: Dict[str, Dict[str, Any]] = {}
+_dataset_cache_lock = threading.Lock()
+DATASET_CACHE_DURATION = 600  # 10 minutes in seconds
 
 _cleanup_lock = threading.Lock()
 _last_cleanup = 0
@@ -88,7 +95,7 @@ def get_executor(max_workers=None):
         if _executor is None:
             # Calculate optimal worker count
             if max_workers is None:
-                max_workers = min(32, (os.cpu_count() or 1) * 4)
+                max_workers = min(8, (os.cpu_count() or 1) * 4)
 
             logger.info(f"Creating ThreadPoolExecutor with {max_workers} workers")
             _executor = concurrent.futures.ThreadPoolExecutor(
@@ -109,6 +116,54 @@ def generate_unique_task_id():
 
     unique_id = str(uuid.uuid4())[:8]  # Short UUID
     return f"task_{int(time.time())}_{os.getpid()}_{counter}_{unique_id}"
+
+def _generate_dataset_cache_key(dataset_name: str, project_name: str, base_url: str) -> str:
+    """Generate a unique cache key for dataset creation"""
+    return f"{dataset_name}#{project_name}#{base_url}"
+
+def _is_dataset_cached(cache_key: str) -> bool:
+    """Check if dataset creation is cached and still valid"""
+    with _dataset_cache_lock:
+        if cache_key not in _dataset_cache:
+            return False
+
+        cache_entry = _dataset_cache[cache_key]
+        cache_time = cache_entry.get('timestamp', 0)
+        current_time = time.time()
+
+        # Check if cache is still valid (within 10 minutes)
+        if current_time - cache_time <= DATASET_CACHE_DURATION:
+            logger.info(f"Dataset creation cache hit for key: {cache_key}")
+            return True
+        else:
+            # Cache expired, remove it
+            logger.info(f"Dataset creation cache expired for key: {cache_key}")
+            del _dataset_cache[cache_key]
+            return False
+
+def _cache_dataset_creation(cache_key: str, response: Any) -> None:
+    """Cache successful dataset creation"""
+    with _dataset_cache_lock:
+        _dataset_cache[cache_key] = {
+            'timestamp': time.time(),
+            'response': response
+        }
+
+def _cleanup_expired_cache_entries() -> None:
+    """Remove expired cache entries"""
+    current_time = time.time()
+    with _dataset_cache_lock:
+        expired_keys = []
+        for cache_key, cache_entry in _dataset_cache.items():
+            cache_time = cache_entry.get('timestamp', 0)
+            if current_time - cache_time > DATASET_CACHE_DURATION:
+                expired_keys.append(cache_key)
+
+        for key in expired_keys:
+            del _dataset_cache[key]
+
+        if expired_keys:
+            logger.info(f"Cleaned up {len(expired_keys)} expired dataset cache entries")
 
 def process_upload(task_id: str, filepath: str, hash_id: str, zip_path: str, 
                   project_name: str, project_id: str, dataset_name: str, 
@@ -165,20 +220,36 @@ def process_upload(task_id: str, filepath: str, hash_id: str, zip_path: str,
             save_task_status(result)
             return result
             
-        # Step 1: Create dataset schema
+        # Step 1: Create dataset schema (with caching)
         logger.info(f"Creating dataset schema for {dataset_name} with base_url: {base_url} and timeout: {timeout}")
-        try:
-            response = create_dataset_schema_with_trace(
-                dataset_name=dataset_name,
-                project_name=project_name,
-                base_url=base_url,
-                user_details=user_details,
-                timeout=timeout
-            )
-            logger.info(f"Dataset schema created: {response}")
-        except Exception as e:
-            logger.error(f"Error creating dataset schema: {e}")
-            # Continue with other steps
+
+        # Generate cache key and check if dataset creation is already cached
+        cache_key = _generate_dataset_cache_key(dataset_name, project_name, base_url)
+
+        if _is_dataset_cached(cache_key):
+            logger.info(f"Dataset schema creation skipped (cached) for {dataset_name}")
+        else:
+            try:
+                # Clean up expired cache entries periodically
+                # _cleanup_expired_cache_entries()
+
+                response = create_dataset_schema_with_trace(
+                    dataset_name=dataset_name,
+                    project_name=project_name,
+                    base_url=base_url,
+                    user_details=user_details,
+                    timeout=timeout
+                )
+                logger.info(f"Dataset schema created: {response}")
+
+                # Cache the response only if status code is 200
+                if response and hasattr(response, 'status_code') and response.status_code in [200, 201]:
+                    _cache_dataset_creation(cache_key, response)
+                    logger.info(f"Response cached successfully for dataset: {dataset_name} and key: {cache_key}")
+
+            except Exception as e:
+                logger.error(f"Error creating dataset schema: {e}")
+                # Continue with other steps
             
         # Step 2: Upload trace metrics
         # if filepath and os.path.exists(filepath):
@@ -238,31 +309,31 @@ def process_upload(task_id: str, filepath: str, hash_id: str, zip_path: str,
                 logger.error(error_msg)
         
         # Step 4: Upload code hash
-        if hash_id and zip_path and os.path.exists(zip_path):
-            logger.info(f"Uploading code hash {hash_id} with base_url: {base_url} and timeout: {timeout}")
-            try:
-                response = upload_code(
-                    hash_id=hash_id,
-                    zip_path=zip_path,
-                    project_name=project_name,
-                    dataset_name=dataset_name,
-                    base_url=base_url,
-                    timeout=timeout
-                )
-                if response is None:
-                    error_msg = "Code hash not uploaded"
-                    logger.error(error_msg)
-                else:
-                    logger.info(f"Code hash uploaded successfully: {response}")
-            except Exception as e:
-                logger.error(f"Error uploading code hash: {e}")
-        else:
-            logger.warning(f"Code zip {zip_path} not found, skipping code upload")
-        
-        # Mark task as completed
-        result["status"] = STATUS_COMPLETED
-        result["end_time"] = datetime.now().isoformat()
-        logger.info(f"Task {task_id} completed successfully")
+        # if hash_id and zip_path and os.path.exists(zip_path):
+        #     logger.info(f"Uploading code hash {hash_id} with base_url: {base_url} and timeout: {timeout}")
+        #     try:
+        #         response = upload_code(
+        #             hash_id=hash_id,
+        #             zip_path=zip_path,
+        #             project_name=project_name,
+        #             dataset_name=dataset_name,
+        #             base_url=base_url,
+        #             timeout=timeout
+        #         )
+        #         if response is None:
+        #             error_msg = "Code hash not uploaded"
+        #             logger.error(error_msg)
+        #         else:
+        #             logger.info(f"Code hash uploaded successfully: {response}")
+        #     except Exception as e:
+        #         logger.error(f"Error uploading code hash: {e}")
+        # else:
+        #     logger.warning(f"Code zip {zip_path} not found, skipping code upload")
+        #
+        # # Mark task as completed
+        # result["status"] = STATUS_COMPLETED
+        # result["end_time"] = datetime.now().isoformat()
+        # logger.info(f"Task {task_id} completed successfully")
         
     except Exception as e:
         logger.error(f"Error processing task {task_id}: {e}")
@@ -553,6 +624,14 @@ def shutdown(timeout=120):
         logger.error(f"Error during executor shutdown: {e}")
 
     _executor = None
+
+    # Close the session manager to clean up HTTP connections
+    if session_manager is not None:
+        try:
+            session_manager.close()
+            logger.info("Session manager closed successfully")
+        except Exception as e:
+            logger.error(f"Error closing session manager: {e}")
 
 # Register shutdown handler
 atexit.register(shutdown)
