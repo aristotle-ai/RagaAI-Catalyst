@@ -42,9 +42,9 @@ class SessionManager:
 
         adapter = HTTPAdapter(
             max_retries=retry_strategy,
-            pool_connections=1,  # number of connections to keep in the pool
+            pool_connections=2,  # number of connections to keep in the pool
             pool_maxsize=50,  # maximum number of connections in the pool
-            pool_block=False  # don't block when pool is full
+            pool_block=True
         )
         logger.debug(f"Configured HTTP adapter: pool_connections={adapter.config.get('pool_connections', 1)}, "
                     f"pool_maxsize={adapter.config.get('pool_maxsize', 50)}, "
