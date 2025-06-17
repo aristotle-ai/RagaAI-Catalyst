@@ -1,10 +1,12 @@
 import logging
+import os
 import threading
 
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 from urllib3.exceptions import PoolError, MaxRetryError, NewConnectionError
-from requests.exceptions import ConnectionError, Timeout, RequestException
+from requests.exceptions import ConnectionError, Timeout
+from ragaai_catalyst import RagaAICatalyst
 import requests
 
 logger = logging.getLogger(__name__)
@@ -42,17 +44,23 @@ class SessionManager:
 
         adapter = HTTPAdapter(
             max_retries=retry_strategy,
-            pool_connections=2,  # number of connections to keep in the pool
-            pool_maxsize=50,  # maximum number of connections in the pool
-            pool_block=True
+            pool_connections=5,  # number of connection pools to cache (per host)
+            pool_maxsize=50,  # maximum number of connections in each pool
+            pool_block=True  # Block/wait when pool is full rather than raising error
         )
-        logger.debug(f"Configured HTTP adapter: pool_connections={adapter.config.get('pool_connections', 1)}, "
-                    f"pool_maxsize={adapter.config.get('pool_maxsize', 50)}, "
-                    f"pool_block={adapter.config.get('pool_block', False)}")
 
         self._session.mount("http://", adapter)
         self._session.mount("https://", adapter)
+
         logger.info("HTTP session initialized successfully with adapters mounted for http:// and https://")
+
+        # Warm up connection pool using RagaAICatalyst.BASE_URL
+        if os.getenv("RAGAAI_CATALYST_BASE_URL") is not None:
+            base_url = os.getenv("RAGAAI_CATALYST_BASE_URL")
+            logger.info(f"Warming up connection pool using RagaAICatalyst.BASE_URL: {base_url}")
+            self.warm_up_connections(base_url)
+        else:
+            logger.warning("RagaAICatalyst.BASE_URL not available, skipping connection warmup")
 
     @property
     def session(self):
@@ -60,6 +68,30 @@ class SessionManager:
             logger.warning("Session accessed but not initialized, reinitializing...")
             self._initialize_session()
         return self._session
+
+    def warm_up_connections(self, base_url, num_connections=3):
+        """
+        Warm up the connection pool by making lightweight requests to healthcheck endpoint.
+        This can help prevent RemoteDisconnected errors on initial requests.
+        """
+        if not self._session:
+            return
+
+        # Construct healthcheck URL
+        healthcheck_url = f"{base_url.rstrip('/')}/healthcheck"
+        logger.info(f"Warming up connection pool with {num_connections} connections to {healthcheck_url}")
+
+        for i in range(num_connections):
+            try:
+                # Make a lightweight HEAD request to the healthcheck endpoint to warm up the connection
+                response = self._session.head(healthcheck_url, timeout=5)
+                logger.info(f"Warmup connection {i+1}: Status {response.status_code}")
+            except Exception as e:
+                logger.error(f"Warmup connection {i+1} failed (this is normal): {e}")
+                # Ignore failures during warmup as they're expected
+                continue
+
+        logger.info("Connection pool warmup completed")
 
     def close(self):
         """Close the session"""
