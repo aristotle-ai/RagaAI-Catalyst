@@ -190,6 +190,8 @@ class UploadAgenticTraces:
             response = requests.request(
                 "POST", endpoint, headers=headers, data=payload, timeout=self.timeout
             )
+            logger.debug(f"Payload: {payload}")
+            logger.debug(f"Headers: {headers}")
             elapsed_ms = (time.time() - start_time) * 1000
             logger.debug(
                 f"API Call: [POST] {endpoint} | Status: {response.status_code} | Time: {elapsed_ms:.2f}ms"
