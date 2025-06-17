@@ -129,16 +129,16 @@ class RAGATraceExporter(SpanExporter):
                 logger.error(f"Error in format_interactions function: {trace_id}: {e}")
                 return None
 
-            try:
-                logger.debug("Started zipping source code: ")
-                # Add source code hash
-                hash_id, zip_path = zip_list_of_unique_files(
-                    self.files_to_zip, output_dir=self.tmp_dir
-                )
-                logger.debug("Completed zipping source code: ")
-            except Exception as e:
-                logger.error(f"Error in zip_list_of_unique_files function: {trace_id}: {e}")
-                return None
+            # try:
+            #     logger.debug("Started zipping source code: ")
+            #     # Add source code hash
+            #     hash_id, zip_path = zip_list_of_unique_files(
+            #         self.files_to_zip, output_dir=self.tmp_dir
+            #     )
+            #     logger.debug("Completed zipping source code: ")
+            # except Exception as e:
+            #     logger.error(f"Error in zip_list_of_unique_files function: {trace_id}: {e}")
+            #     return None
 
             try:
                 logger.debug("Started adding system info: ")
@@ -151,7 +151,7 @@ class RAGATraceExporter(SpanExporter):
 
             try:
                 logger.debug("Started adding source code hash: ")
-                ragaai_trace["metadata"]["system_info"]["source_code"] = hash_id
+                ragaai_trace["metadata"]["system_info"]["source_code"] = ""
                 logger.debug("Completed adding source code hash: ")
             except Exception as e:
                 logger.error(f"Error in adding source code hash: {trace_id}: {e}")
@@ -209,8 +209,8 @@ class RAGATraceExporter(SpanExporter):
 
             return {
                 'trace_file_path': trace_file_path,
-                'code_zip_path': zip_path,
-                'hash_id': hash_id
+                'code_zip_path': "zip_path",
+                'hash_id': "absdsjkdhsjkfhjkdshfkjdshfjdsh"
             }
         except Exception as e:
             logger.error(f"Error converting trace {trace_id}: {str(e)}")
