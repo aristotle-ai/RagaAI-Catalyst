@@ -79,7 +79,7 @@ def _fetch_dataset_code_hashes(project_name, dataset_name, base_url=None, timeou
             f"API Call: [GET] {endpoint} | Status: {response.status_code} | Time: {elapsed_ms:.2f}ms"
         )
 
-        if response.status_code == 200:
+        if response.status_code in [200, 201]:
             return response.json()["data"]["codeHashes"]
         elif response.status_code == 401:
             logger.warning("Received 401 error. Attempting to refresh token.")
@@ -93,11 +93,14 @@ def _fetch_dataset_code_hashes(project_name, dataset_name, base_url=None, timeou
             )
             elapsed_ms = (time.time() - start_time) * 1000
             logger.debug(f"API Call: [GET] {endpoint} | Status: {response.status_code} | Time: {elapsed_ms:.2f}ms")
-            if response.status_code == 200:
+            if response.status_code in [200, 201]:
                 return response.json()["data"]["codeHashes"]
             else:
                 logger.error(f"Failed to fetch code hashes: {response.json()['message']}")
                 return None
+        else:
+            logger.error(f"Error while inserting traces: {response.json()['message']}")
+            return None
     except (PoolError, MaxRetryError, NewConnectionError, ConnectionError, Timeout) as e:
         session_manager.handle_request_exceptions(e, "fetching dataset code hashes")
         return None
