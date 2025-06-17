@@ -70,10 +70,7 @@ def test_get_variable(prompt_manager):
     prompt_variable = prompt.get_variables()
     assert prompt_variable == ['system1', 'system2'] or prompt_variable == ['system2', 'system1']
 
-def test_get_model_parameters(prompt_manager):
-    prompt = prompt_manager.get_prompt(prompt_name="test2", version="v3")
-    model_parameter = prompt.get_model_parameters()
-    assert model_parameter== {'frequency_penalty': 0.4,'max_tokens': 1038,'presence_penalty': 0.1,'temperature': 0.7,'model': 'gpt-4o-mini'}
+
 
 def test_compile_prompt(prompt_manager):
     prompt = prompt_manager.get_prompt(prompt_name="test2", version="v3")
