@@ -167,7 +167,7 @@ def _cleanup_expired_cache_entries() -> None:
 
 def process_upload(task_id: str, filepath: str, hash_id: str, zip_path: str, 
                   project_name: str, project_id: str, dataset_name: str, 
-                  user_details: Dict[str, Any], base_url: str, timeout=120, fail_on_trace_error=True) -> Dict[str, Any]:
+                  user_details: Dict[str, Any], base_url: str, tracer_type, timeout=120, fail_on_trace_error=True) -> Dict[str, Any]:
     """
     Process a single upload task
     
@@ -309,32 +309,34 @@ def process_upload(task_id: str, filepath: str, hash_id: str, zip_path: str,
                 logger.error(error_msg)
         
         # Step 4: Upload code hash
-        # if hash_id and zip_path and os.path.exists(zip_path):
-        #     logger.info(f"Uploading code hash {hash_id} with base_url: {base_url} and timeout: {timeout}")
-        #     try:
-        #         response = upload_code(
-        #             hash_id=hash_id,
-        #             zip_path=zip_path,
-        #             project_name=project_name,
-        #             dataset_name=dataset_name,
-        #             base_url=base_url,
-        #             timeout=timeout
-        #         )
-        #         if response is None:
-        #             error_msg = "Code hash not uploaded"
-        #             logger.error(error_msg)
-        #         else:
-        #             logger.info(f"Code hash uploaded successfully: {response}")
-        #     except Exception as e:
-        #         logger.error(f"Error uploading code hash: {e}")
-        # else:
-        #     logger.warning(f"Code zip {zip_path} not found, skipping code upload")
-        #
-        # # Mark task as completed
-        # result["status"] = STATUS_COMPLETED
-        # result["end_time"] = datetime.now().isoformat()
-        # logger.info(f"Task {task_id} completed successfully")
-        
+        if tracer_type.startswith("agentic/"):
+            logger.info(f"Tracer type '{tracer_type}' matches agentic pattern, proceeding with code upload")
+            if hash_id and zip_path and os.path.exists(zip_path):
+                logger.info(f"Uploading code hash {hash_id} with base_url: {base_url} and timeout: {timeout}")
+                try:
+                    response = upload_code(
+                        hash_id=hash_id,
+                        zip_path=zip_path,
+                        project_name=project_name,
+                        dataset_name=dataset_name,
+                        base_url=base_url,
+                        timeout=timeout
+                    )
+                    if response is None:
+                        error_msg = "Code hash not uploaded"
+                        logger.error(error_msg)
+                    else:
+                        logger.info(f"Code hash uploaded successfully: {response}")
+                except Exception as e:
+                    logger.error(f"Error uploading code hash: {e}")
+            else:
+                logger.warning(f"Code zip {zip_path} not found, skipping code upload")
+
+        # Mark task as completed
+        result["status"] = STATUS_COMPLETED
+        result["end_time"] = datetime.now().isoformat()
+        logger.info(f"Task {task_id} completed successfully")
+
     except Exception as e:
         logger.error(f"Error processing task {task_id}: {e}")
         result["status"] = STATUS_FAILED
@@ -377,7 +379,8 @@ def save_task_status(task_status: Dict[str, Any]):
     with open(status_path, "w") as f:
         json.dump(task_status, f, indent=2)
 
-def submit_upload_task(filepath, hash_id, zip_path, project_name, project_id, dataset_name, user_details, base_url, timeout=120):
+def submit_upload_task(filepath, hash_id, zip_path, project_name, project_id, dataset_name, user_details, base_url,
+                       tracer_type, timeout=120):
     """
     Submit a new upload task using futures.
     
@@ -424,6 +427,7 @@ def submit_upload_task(filepath, hash_id, zip_path, project_name, project_id, da
                 dataset_name=dataset_name,
                 user_details=user_details,
                 base_url=base_url,
+                tracer_type = tracer_type,
                 timeout=timeout,
                 fail_on_trace_error=True
             )
@@ -454,6 +458,7 @@ def submit_upload_task(filepath, hash_id, zip_path, project_name, project_id, da
             dataset_name=dataset_name,
             user_details=user_details,
             base_url=base_url,
+            tracer_type=tracer_type,
             timeout=timeout,
             fail_on_trace_error=True
         )
