@@ -48,6 +48,8 @@ class UploadAgenticTraces:
         }
 
         logger.debug("Started getting presigned url: ")
+        logger.debug(f"Payload: {payload}")
+        logger.debug(f"Headers: {headers}")
         try:
             start_time = time.time()
             endpoint = f"{self.base_url}/v1/llm/presigned-url"
