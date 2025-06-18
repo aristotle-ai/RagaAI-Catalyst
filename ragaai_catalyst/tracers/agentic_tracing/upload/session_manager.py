@@ -38,6 +38,8 @@ class SessionManager:
 
         retry_strategy = Retry(
             total=3,  # number of retries
+            connect=3,  # number of retries for connection-related errors
+            read=3,  # number of retries for read-related errors
             backoff_factor=0.5,  # wait 0.5, 1, 2... seconds between retries
             status_forcelist=[500, 502, 503, 504]  # HTTP status codes to retry on
         )
@@ -51,6 +53,12 @@ class SessionManager:
 
         self._session.mount("http://", adapter)
         self._session.mount("https://", adapter)
+
+        # Set session-level configuration to handle connection issues
+        self._session.headers.update({
+            'Connection': 'keep-alive',
+            'User-Agent': 'RagaAI-Catalyst/1.0'
+        })
 
         logger.info("HTTP session initialized successfully with adapters mounted for http:// and https://")
 
