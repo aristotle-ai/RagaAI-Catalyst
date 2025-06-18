@@ -60,7 +60,7 @@ class SessionManager:
             logger.info(f"Warming up connection pool using RagaAICatalyst.BASE_URL: {base_url}")
             self.warm_up_connections(base_url)
         else:
-            logger.warning(f"RAGAAI_CATALYST_BASE_URL {base_url}  not available, skipping connection warmup")
+            logger.warning(f"RAGAAI_CATALYST_BASE_URL not available, skipping connection warmup")
 
     @property
     def session(self):
