@@ -30,6 +30,7 @@ from ragaai_catalyst.tracers.agentic_tracing import AgenticTracing
 from ragaai_catalyst.tracers.agentic_tracing.tracers.llm_tracer import LLMTracerMixin
 from ragaai_catalyst.tracers.exporters.ragaai_trace_exporter import RAGATraceExporter
 from ragaai_catalyst.tracers.agentic_tracing.utils.file_name_tracker import TrackName
+from ragaai_catalyst.tracers.processors.dataset_span_processor import DatasetSpanProcessor
 
 logger = logging.getLogger(__name__)
 logging_level = (
@@ -510,12 +511,22 @@ class Tracer(AgenticTracing):
 
     def set_dataset_name(self, dataset_name):
         """
-        This method updates the dataset_name attribute of the dynamic exporter.
+        This method updates the dataset_name attribute of the dynamic exporter
+        and the dataset processor for automatic span attribute setting.
         Args:
             dataset_name (str): The new dataset name to set
         """
+        # Update the dynamic exporter
         self.dynamic_exporter.dataset_name = dataset_name
         logger.debug(f"Updated dynamic exporter's dataset_name to {dataset_name}")
+        
+        # Update the dataset processor if it exists
+        if hasattr(self, 'dataset_processor') and self.dataset_processor:
+            self.dataset_processor.update_dataset_name(dataset_name)
+            logger.debug(f"Updated dataset processor's dataset_name to {dataset_name}")
+        
+        # Update the tracer's own dataset_name
+        self.dataset_name = dataset_name
 
     def _improve_metadata(self, metadata, tracer_type):
         if metadata is None:
@@ -770,6 +781,7 @@ class Tracer(AgenticTracing):
         from opentelemetry.sdk import trace as trace_sdk
         from opentelemetry.sdk.trace.export import SimpleSpanProcessor
         from ragaai_catalyst.tracers.exporters.dynamic_trace_exporter import DynamicTraceExporter
+        from ragaai_catalyst.tracers.processors.dataset_span_processor import DatasetSpanProcessor
         
         # Get the code_files
         self.file_tracker.trace_main_file()
@@ -793,8 +805,16 @@ class Tracer(AgenticTracing):
             external_id=self.external_id
         )
         
+        # Create dataset span processor to automatically set dataset attributes
+        self.dataset_processor = DatasetSpanProcessor(self.dataset_name)
+        
         # Set up tracer provider
         tracer_provider = trace_sdk.TracerProvider()
+        
+        # Add dataset processor first to set attributes on span start
+        tracer_provider.add_span_processor(self.dataset_processor)
+        
+        # Add export processor
         tracer_provider.add_span_processor(SimpleSpanProcessor(self.dynamic_exporter))
         
         # Instrument all specified instrumentors
@@ -809,6 +829,8 @@ class Tracer(AgenticTracing):
             # Instrument with the provided tracer provider and arguments
             instrumentor.instrument(tracer_provider=tracer_provider, *args)
             
+        logger.info(f"Agentic tracer setup complete with automatic dataset routing - dataset: {self.dataset_name}")
+
     def update_file_list(self):
         """
         Update the file list in the dynamic exporter with the latest tracked files.

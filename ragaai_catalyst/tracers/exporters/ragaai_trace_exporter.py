@@ -3,9 +3,7 @@ import logging
 import os
 import tempfile
 from dataclasses import asdict
-
 from opentelemetry.sdk.trace.export import SpanExporter, SpanExportResult
-
 from ragaai_catalyst.tracers.agentic_tracing.tracers.base import TracerJSONEncoder
 from ragaai_catalyst.tracers.agentic_tracing.upload.trace_uploader import (
     submit_upload_task,
@@ -82,6 +80,42 @@ class RAGATraceExporter(SpanExporter):
         self.trace_spans.clear()
 
     def process_complete_trace(self, spans, trace_id):
+        """
+        Process a complete trace and route it to the appropriate dataset.
+        Now includes simple dataset routing based on span attributes.
+        """
+        # Check for dataset routing
+        target_dataset = self._get_dataset_from_spans(spans)
+        
+        if target_dataset and target_dataset != self.dataset_name:
+            # Temporarily route to the target dataset
+            logger.info(f"Routing trace {trace_id} to dataset: {target_dataset}")
+            
+            # Store original values
+            original_dataset = self.dataset_name
+            original_user_details = self.user_details.copy()
+            
+            try:
+                # Update dataset for this trace
+                self.dataset_name = target_dataset
+                self.user_details["dataset_name"] = target_dataset
+                
+                # Process with updated dataset
+                self._process_trace_with_current_dataset(spans, trace_id)
+                
+            finally:
+                # Restore original values
+                self.dataset_name = original_dataset
+                self.user_details = original_user_details
+        else:
+            # Use original dataset
+            logger.debug(f"Trace {trace_id} using original dataset: {self.dataset_name}")
+            self._process_trace_with_current_dataset(spans, trace_id)
+
+    def _process_trace_with_current_dataset(self, spans, trace_id):
+        """
+        Process the trace with the current dataset (original logic from process_complete_trace).
+        """
         # Convert the trace to ragaai trace format
         try:
             ragaai_trace_details = self.prepare_trace(spans, trace_id)
@@ -101,6 +135,34 @@ class RAGATraceExporter(SpanExporter):
             self.upload_trace(ragaai_trace_details, trace_id)
         except Exception as e:
             print(f"Error uploading trace {trace_id}: {e}")
+
+    def _get_dataset_from_spans(self, spans):
+        """
+        Extract dataset name from span attributes.
+        
+        Args:
+            spans: List of span dictionaries
+            
+        Returns:
+            str: Dataset name if found, None otherwise
+        """
+        try:
+            # Look through all spans for the ragaai.dataset attribute
+            for span in spans:
+                attributes = span.get('attributes', {})
+                dataset = attributes.get('ragaai.dataset')
+                
+                if dataset:
+                    logger.debug(f"Found dataset '{dataset}' in span: {span.get('name', 'unnamed')}")
+                    return dataset
+            
+            # No dataset attribute found
+            logger.debug("No ragaai.dataset attribute found in any span")
+            return None
+            
+        except Exception as e:
+            logger.error(f"Error extracting dataset from spans: {e}")
+            return None
 
     def prepare_trace(self, spans, trace_id):
         try:
