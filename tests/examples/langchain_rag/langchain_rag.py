@@ -33,8 +33,8 @@ os.environ['GOOGLE_API_KEY'] = os.getenv('GOOGLE_API_KEY')
 # )
 
 catalyst = RagaAICatalyst(
-    access_key="hShxuaTU4DmkTLPziBcT",
-    secret_key="kgRue1n59Oq2jkATPggNeHHPorVpHXz2AG6NKY1Y",
+    access_key="jv3B4OIxKY9pn2cYjXni",
+    secret_key="1MPr3pEYDjlbQzPaLxbEAqskNHcdDHHrhmgfvY3b",
     base_url="http://4.240.58.193/api"
 )
 
@@ -76,7 +76,7 @@ def full_masking_function(value):
 init_tracing(catalyst=catalyst, tracer=tracer)
 
 
-def load_documents(data_dir="/Users/ritikagoel/workspace/regression_pytest/RagaAI-Catalyst/tests/examples/langchain_rag/data"):
+def load_documents(data_dir="data"):
     loader = DirectoryLoader(
         path=data_dir,
         glob="**/*.pdf",

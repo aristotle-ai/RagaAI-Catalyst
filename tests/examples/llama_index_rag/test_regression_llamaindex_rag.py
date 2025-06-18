@@ -492,6 +492,28 @@ def test_context_value():
     expected_context = "An Introduction to Artificial Intelligence\nArtificial Intelligence (AI) is the simulation of human intelligence in machines that are designed to\nthink and act like humans. These machines can perform tasks such as learning, reasoning,\nproblem-solving, and understanding language.\nKey Areas of AI:\n1. Machine Learning: Algorithms that allow computers to learn from and make predictions based on\ndata.\n2. Natural Language Processing (NLP): Enabling machines to understand and interpret human\nlanguage.\n3. Robotics: The design and use of robots that can perform tasks autonomously.\n4. Computer Vision: Giving machines the ability to interpret and make decisions based on visual\ninputs.\n5. Neural Networks: Modeled after the human brain, used in deep learning to recognize patterns.\nAI Applications:\n1. Healthcare: AI is transforming the medical field by enabling better diagnostics and personalized\nmedicine.\n2. Autonomous Vehicles: AI powers self-driving cars and enhances transportation safety.\n3. Finance: AI assists in fraud detection, algorithmic trading, and customer service through chatbots.\n4. Education: Personalized learning experiences and AI-powered tutors are improving the education\nsystem.\nChallenges in AI:\n1. Ethical Considerations: The impact of AI on employment and privacy is a major concern."
     assert context == expected_context, f"Expected context to be '{expected_context}', but got '{context}'"
 
+def test_error_cost():
+    trace_file_path = os.path.join(
+        Path(__file__).resolve().parent, 
+        "rag_agent_traces.json"
+    )
+    
+    # Load the trace file
+    with open(trace_file_path, 'r') as f:
+        trace_data = json.load(f)
+
+    response_span = [span for span in trace_data["data"][0]["spans"] if span["name"] in ["ChatOpenAI", "ChatAnthropic", "ChatGoogleGenerativeAI", "OpenAI", "ChatOpenAI_LangchainOpenAI", "ChatOpenAI_ChatModels",
+                                "ChatVertexAI", "VertexAI", "ChatLiteLLM", "ChatBedrock", "AzureChatOpenAI", "ChatAnthropicVertex"]]
+    # if "status" in response_span.keys() and response_span.get("status", {}).get("status_code", "").lower() == "error":
+    if response_span:
+        response_span = response_span[0]
+        if "status" in response_span.keys() and response_span.get("status", {}).get("status_code", "").lower() == "error":
+            if "llm.cost" in response_span["attributes"]:
+                openai_cost = response_span["attributes"]["llm.cost"]["total_cost"]
+                print(openai_cost)
+                assert openai_cost == 0, \
+                    f"Expected cost should be 0, it is coming {openai_cost}"
+
 if __name__ == "__main__":
     test_trace_total_cost()
     test_span_cost_consistency()
@@ -504,6 +526,7 @@ if __name__ == "__main__":
     test_export_trace_metadata()
     test_export_trace_data()
     test_prompt_value()
+    test_error_cost()
     test_response_value()
     test_context_value()
 

@@ -19,8 +19,8 @@ os.environ['OPENAI_API_KEY'] = os.getenv('OPENAI_API_KEY')
 os.environ['GOOGLE_API_KEY'] = os.getenv('GOOGLE_API_KEY')
 
 catalyst = RagaAICatalyst(
-    access_key="hShxuaTU4DmkTLPziBcT",
-    secret_key="kgRue1n59Oq2jkATPggNeHHPorVpHXz2AG6NKY1Y",
+    access_key="jv3B4OIxKY9pn2cYjXni",
+    secret_key="1MPr3pEYDjlbQzPaLxbEAqskNHcdDHHrhmgfvY3b",
     base_url="http://4.240.58.193/api"
 )
 
@@ -125,7 +125,7 @@ def llamaindex_rag(source_doc_path, loaded_doc, query):
 
 
 
-source_doc_path = "/Users/ritikagoel/workspace/regression_pytest_github/RagaAI-Catalyst/tests/examples/llama_index_rag/data/AI_Introduction.pdf"
+source_doc_path = os.path.join(os.path.dirname(__file__), "data", "AI_Introduction.pdf")
 
 # Process a query
 if __name__ == "__main__":

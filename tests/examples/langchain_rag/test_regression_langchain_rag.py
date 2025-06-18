@@ -263,6 +263,28 @@ def test_export_trace_data():
     # Assert that we have loaded data successfully
     assert "data" in trace_data, "Trace data should have a 'data' field"
     
+def test_error_cost():
+    trace_file_path = os.path.join(
+        Path(__file__).resolve().parent, 
+        "rag_agent_traces.json"
+    )
+    
+    # Load the trace file
+    with open(trace_file_path, 'r') as f:
+        trace_data = json.load(f)
+
+    response_span = [span for span in trace_data["data"][0]["spans"] if span["name"] in ["ChatOpenAI", "ChatAnthropic", "ChatGoogleGenerativeAI", "OpenAI", "ChatOpenAI_LangchainOpenAI", "ChatOpenAI_ChatModels",
+                                "ChatVertexAI", "VertexAI", "ChatLiteLLM", "ChatBedrock", "AzureChatOpenAI", "ChatAnthropicVertex"]]
+    # if "status" in response_span.keys() and response_span.get("status", {}).get("status_code", "").lower() == "error":
+    if response_span:
+        response_span = response_span[0]
+        if "status" in response_span.keys() and response_span.get("status", {}).get("status_code", "").lower() == "error":
+            if "llm.cost" in response_span["attributes"]:
+                openai_cost = response_span["attributes"]["llm.cost"]["total_cost"]
+                print(openai_cost)
+                assert openai_cost == 0, \
+                    f"Expected cost should be 0, it is coming {openai_cost}"
+                
 
 def test_prompt_value():
     """
@@ -484,6 +506,7 @@ if __name__ == "__main__":
     test_export_trace_metadata()
     test_export_trace_data()
     test_prompt_value()
+    test_error_cost()
     test_response_value()
     test_context_value()
 
