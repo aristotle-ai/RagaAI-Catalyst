@@ -277,7 +277,7 @@ def process_upload(task_id: str, filepath: str, hash_id: str, zip_path: str,
                     json_file_path=filepath,
                     project_name=project_name,
                     project_id=project_id,
-                    dataset_name=dataset_name,
+                    # dataset_name=dataset_name,
                     user_detail=user_details,
                     base_url=base_url,   
                     timeout=timeout

@@ -31,6 +31,7 @@ from ragaai_catalyst.tracers.agentic_tracing.tracers.llm_tracer import LLMTracer
 from ragaai_catalyst.tracers.exporters.ragaai_trace_exporter import RAGATraceExporter
 from ragaai_catalyst.tracers.agentic_tracing.utils.file_name_tracker import TrackName
 from ragaai_catalyst.tracers.processors.dataset_span_processor import DatasetSpanProcessor
+from opentelemetry import context
 
 logger = logging.getLogger(__name__)
 logging_level = (
@@ -511,22 +512,26 @@ class Tracer(AgenticTracing):
 
     def set_dataset_name(self, dataset_name):
         """
-        This method updates the dataset_name attribute of the dynamic exporter
-        and the dataset processor for automatic span attribute setting.
+        This method sets the dataset name for the current request context using OpenTelemetry context variables.
+        This ensures proper isolation between concurrent requests with different dataset names.
         Args:
-            dataset_name (str): The new dataset name to set
+            dataset_name (str): The new dataset name to set for current request context
         """
-        # Update the dynamic exporter
+        # Set the dataset name in the current request context (thread-safe)
+        ctx = context.set_value("ragaai.dataset_name", dataset_name)
+        token = context.attach(ctx)
+        logger.debug(f"Set dataset context variable to '{dataset_name}' for current request")
+        
+        # Still update the dynamic exporter for backward compatibility with non-context-aware components
         self.dynamic_exporter.dataset_name = dataset_name
         logger.debug(f"Updated dynamic exporter's dataset_name to {dataset_name}")
         
-        # Update the dataset processor if it exists
-        if hasattr(self, 'dataset_processor') and self.dataset_processor:
-            self.dataset_processor.update_dataset_name(dataset_name)
-            logger.debug(f"Updated dataset processor's dataset_name to {dataset_name}")
-        
-        # Update the tracer's own dataset_name
+        # Update the tracer's own dataset_name (fallback)
         self.dataset_name = dataset_name
+        
+        # Note: We no longer update the global dataset_processor to avoid race conditions
+        # The processor will now read from context variables in on_start()
+        logger.debug(f"Dataset name set via context variables for request-level isolation")
 
     def _improve_metadata(self, metadata, tracer_type):
         if metadata is None:
