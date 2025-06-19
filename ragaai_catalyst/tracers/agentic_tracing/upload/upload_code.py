@@ -6,6 +6,7 @@ import json
 from urllib.parse import urlparse, urlunparse
 from urllib3.exceptions import PoolError, MaxRetryError, NewConnectionError
 from requests.exceptions import ConnectionError, Timeout, RequestException
+from http.client import RemoteDisconnected
 
 import requests
 
@@ -71,7 +72,7 @@ def _fetch_dataset_code_hashes(project_name, dataset_name, base_url=None, timeou
         url_base = base_url if base_url is not None else RagaAICatalyst.BASE_URL
         start_time = time.time()
         endpoint = f"{url_base}/v2/llm/dataset/code?datasetName={dataset_name}"
-        response = session_manager.session.request(
+        response = session_manager.make_request_with_retry(
             "GET", endpoint, headers=headers, data=payload, timeout=timeout
         )
         elapsed_ms = (time.time() - start_time) * 1000
@@ -88,7 +89,7 @@ def _fetch_dataset_code_hashes(project_name, dataset_name, base_url=None, timeou
                 "Authorization": f"Bearer {os.getenv('RAGAAI_CATALYST_TOKEN')}",
                 "X-Project-Name": project_name,
             }
-            response = session_manager.session.request(
+            response = session_manager.make_request_with_retry(
                 "GET", endpoint, headers=headers, data=payload, timeout=timeout
             )
             elapsed_ms = (time.time() - start_time) * 1000
@@ -101,7 +102,7 @@ def _fetch_dataset_code_hashes(project_name, dataset_name, base_url=None, timeou
         else:
             logger.error(f"Error while fetching dataset code hashes: {response.json()['message']}")
             return None
-    except (PoolError, MaxRetryError, NewConnectionError, ConnectionError, Timeout) as e:
+    except (PoolError, MaxRetryError, NewConnectionError, ConnectionError, Timeout, RemoteDisconnected) as e:
         session_manager.handle_request_exceptions(e, "fetching dataset code hashes")
         return None
     except RequestException as e:
@@ -213,7 +214,7 @@ def _put_zip_presigned_url(project_name, presignedUrl, filename, timeout=120):
             payload = f.read()
 
         start_time = time.time()
-        response = session_manager.session.request(
+        response = session_manager.make_request_with_retry(
             "PUT", presignedUrl, headers=headers, data=payload, timeout=timeout
         )
         elapsed_ms = (time.time() - start_time) * 1000
@@ -223,7 +224,7 @@ def _put_zip_presigned_url(project_name, presignedUrl, filename, timeout=120):
         if response.status_code not in [200, 201]:
             return response, response.status_code
         return True
-    except (PoolError, MaxRetryError, NewConnectionError, ConnectionError, Timeout) as e:
+    except (PoolError, MaxRetryError, NewConnectionError, ConnectionError, Timeout, RemoteDisconnected) as e:
         session_manager.handle_request_exceptions(e, "uploading zip to presigned URL")
         return False
     except RequestException as e:
@@ -251,7 +252,7 @@ def _insert_code(
         url_base = base_url if base_url is not None else RagaAICatalyst.BASE_URL
         start_time = time.time()
         endpoint = f"{url_base}/v2/llm/dataset/code"
-        response = session_manager.session.request(
+        response = session_manager.make_request_with_retry(
             "POST", endpoint, headers=headers, data=payload, timeout=timeout
         )
         elapsed_ms = (time.time() - start_time) * 1000
@@ -269,7 +270,7 @@ def _insert_code(
                 "Content-Type": "application/json",
                 "Authorization": f"Bearer {token}",
             }
-            response = session_manager.session.request(
+            response = session_manager.make_request_with_retry(
                 "POST", endpoint, headers=headers, data=payload, timeout=timeout
             )
             elapsed_ms = (time.time() - start_time) * 1000
@@ -285,7 +286,7 @@ def _insert_code(
         else:
             logger.error(f"Failed to insert code: {response.json()['message']}")
             return None
-    except (PoolError, MaxRetryError, NewConnectionError, ConnectionError, Timeout) as e:
+    except (PoolError, MaxRetryError, NewConnectionError, ConnectionError, Timeout, RemoteDisconnected) as e:
         session_manager.handle_request_exceptions(e, "inserting code")
         return None
     except RequestException as e:
