@@ -99,7 +99,7 @@ def _fetch_dataset_code_hashes(project_name, dataset_name, base_url=None, timeou
                 logger.error(f"Failed to fetch code hashes: {response.json()['message']}")
                 return None
         else:
-            logger.error(f"Error while inserting traces: {response.json()['message']}")
+            logger.error(f"Error while fetching dataset code hashes: {response.json()['message']}")
             return None
     except (PoolError, MaxRetryError, NewConnectionError, ConnectionError, Timeout) as e:
         session_manager.handle_request_exceptions(e, "fetching dataset code hashes")
