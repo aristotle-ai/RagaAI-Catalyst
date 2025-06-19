@@ -203,6 +203,7 @@ class RAGATraceExporter(SpanExporter):
                 dataset_name=self.dataset_name,
                 user_details=self.user_details,
                 base_url=self.base_url,
+                tracer_type=self.tracer_type,
                 timeout=self.timeout
             )
 
