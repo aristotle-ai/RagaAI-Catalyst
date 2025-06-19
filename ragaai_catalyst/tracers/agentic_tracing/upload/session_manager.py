@@ -95,7 +95,7 @@ class SessionManager:
                 response = self._session.head(healthcheck_url, timeout=5)
                 logger.info(f"Warmup connection {i+1}: Status {response.status_code}")
             except Exception as e:
-                logger.warn(f"Warmup connection {i+1} failed (this is normal): {e}")
+                logger.warning(f"Warmup connection {i+1} failed (this is normal): {e}")
                 # Ignore failures during warmup as they're expected
                 continue
 
