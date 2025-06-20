@@ -2,7 +2,13 @@ import os
 import json
 import re
 import requests
+import logging
 from ragaai_catalyst.tracers.agentic_tracing.tracers.base import RagaAICatalyst
+
+logger = logging.getLogger(__name__)
+logging_level = (
+    logger.setLevel(logging.DEBUG) if os.getenv("DEBUG") == "1" else logging.INFO
+)
 
 def create_dataset_schema_with_trace(project_name, dataset_name, base_url=None, user_details=None, timeout=120):
     SCHEMA_MAPPING = {}
@@ -40,4 +46,9 @@ def create_dataset_schema_with_trace(project_name, dataset_name, base_url=None, 
         )
         return response
     response = make_request()
+    if response.status_code != 200:
+        logger.debug(f"Failed to create dataset schema")
+        logger.debug(f"Error: {response.json()['message']}")
+    else:
+        logger.debug(f"Dataset schema created successfully for dataset: {dataset_name}")
     return response
