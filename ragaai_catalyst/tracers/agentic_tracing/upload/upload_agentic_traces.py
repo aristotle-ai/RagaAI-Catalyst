@@ -4,6 +4,10 @@ import os
 import re
 import time
 from urllib.parse import urlparse, urlunparse
+from urllib3.exceptions import PoolError, MaxRetryError, NewConnectionError
+from requests.exceptions import ConnectionError, Timeout, RequestException
+from http.client import RemoteDisconnected
+from .session_manager import session_manager
 
 import requests
 
@@ -48,7 +52,7 @@ class UploadAgenticTraces:
             start_time = time.time()
             endpoint = f"{self.base_url}/v1/llm/presigned-url"
             # Changed to POST from GET
-            response = requests.request(
+            response = session_manager.make_request_with_retry(
                 "POST", endpoint, headers=headers, data=payload, timeout=self.timeout
             )
             elapsed_ms = (time.time() - start_time) * 1000
@@ -62,7 +66,7 @@ class UploadAgenticTraces:
                 return presignedurl
             else:
                 # If POST fails, try GET
-                response = requests.request(
+                response = session_manager.make_request_with_retry(
                     "GET", endpoint, headers=headers, data=payload, timeout=self.timeout
                 )
                 elapsed_ms = (time.time() - start_time) * 1000
@@ -83,7 +87,7 @@ class UploadAgenticTraces:
                         "Authorization": f"Bearer {token}",
                         "X-Project-Name": self.project_name,
                     }
-                    response = requests.request(
+                    response = session_manager.make_request_with_retry(
                         "POST",
                         endpoint,
                         headers=headers,
@@ -110,8 +114,10 @@ class UploadAgenticTraces:
                         f"Error while getting presigned url: {response.json()['message']}"
                     )
                     return None
-
-        except requests.exceptions.RequestException as e:
+        except (PoolError, MaxRetryError, NewConnectionError, ConnectionError, Timeout, RemoteDisconnected) as e:
+            session_manager.handle_request_exceptions(e, "getting presigned URL")
+            return None
+        except RequestException as e:
             logger.error(f"Error while getting presigned url: {e}")
             return None
 
@@ -138,16 +144,16 @@ class UploadAgenticTraces:
 
         if "blob.core.windows.net" in presignedUrl:  # Azure
             headers["x-ms-blob-type"] = "BlockBlob"
-        print("Uploading agentic traces...")
+        logger.info("Uploading agentic traces to presigned URL...")
         try:
             with open(filename) as f:
                 payload = f.read().replace("\n", "").replace("\r", "").encode()
         except Exception as e:
-            print(f"Error while reading file: {e}")
+            logger.error(f"Error while reading file: {e}")
             return False
         try:
             start_time = time.time()
-            response = requests.request(
+            response = session_manager.make_request_with_retry(
                 "PUT", presignedUrl, headers=headers, data=payload, timeout=self.timeout
             )
             elapsed_ms = (time.time() - start_time) * 1000
@@ -157,8 +163,11 @@ class UploadAgenticTraces:
             if response.status_code != 200 or response.status_code != 201:
                 return response, response.status_code
             return True
-        except requests.exceptions.RequestException as e:
-            print(f"Error while uploading to presigned url: {e}")
+        except (PoolError, MaxRetryError, NewConnectionError, ConnectionError, Timeout, RemoteDisconnected) as e:
+            session_manager.handle_request_exceptions(e, "uploading trace to presigned URL")
+            return False
+        except RequestException as e:
+            logger.error(f"Error while uploading trace to presigned url: {e}")
             return False
 
     def insert_traces(self, presignedUrl):
@@ -177,16 +186,16 @@ class UploadAgenticTraces:
         try:
             start_time = time.time()
             endpoint = f"{self.base_url}/v1/llm/insert/trace"
-            response = requests.request(
+            response = session_manager.make_request_with_retry(
                 "POST", endpoint, headers=headers, data=payload, timeout=self.timeout
             )
             elapsed_ms = (time.time() - start_time) * 1000
             logger.debug(
                 f"API Call: [POST] {endpoint} | Status: {response.status_code} | Time: {elapsed_ms:.2f}ms"
             )
-            if response.status_code != 200:
-                print(f"Error inserting traces: {response.json()['message']}")
-                return False
+            if response.status_code in [200, 201]:
+                logger.info(f"Traces inserted successfully: {response.json()['message']}")
+                return True
             elif response.status_code == 401:
                 logger.warning("Received 401 error. Attempting to refresh token.")
                 token = RagaAICatalyst.get_token(force_refresh=True)
@@ -195,7 +204,7 @@ class UploadAgenticTraces:
                     "Content-Type": "application/json",
                     "X-Project-Name": self.project_name,
                 }
-                response = requests.request(
+                response = session_manager.make_request_with_retry(
                     "POST",
                     endpoint,
                     headers=headers,
@@ -206,17 +215,21 @@ class UploadAgenticTraces:
                 logger.debug(
                     f"API Call: [POST] {endpoint} | Status: {response.status_code} | Time: {elapsed_ms:.2f}ms"
                 )
-                if response.status_code != 200:
-                    print(f"Error inserting traces: {response.json()['message']}")
-                    return False
+                if response.status_code in [200, 201]:
+                    logger.info(f"Traces inserted successfully: {response.json()['message']}")
+                    return True
                 else:
-                    print("Error while inserting traces")
+                    logger.error(f"Error while inserting traces after 401: {response.json()['message']}")
                     return False
             else:
-                return True
-        except requests.exceptions.RequestException as e:
-            print(f"Error while inserting traces: {e}")
-            return None
+                logger.error(f"Error while inserting traces: {response.json()['message']}")
+                return False
+        except (PoolError, MaxRetryError, NewConnectionError, ConnectionError, Timeout, RemoteDisconnected) as e:
+            session_manager.handle_request_exceptions(e, "inserting traces")
+            return False
+        except RequestException as e:
+            logger.error(f"Error while inserting traces: {e}")
+            return False
 
     def _get_dataset_spans(self):
         try:
@@ -245,26 +258,26 @@ class UploadAgenticTraces:
                     continue
             return dataset_spans
         except Exception as e:
-            print(f"Error while reading dataset spans: {e}")
+            logger.error(f"Error while reading dataset spans: {e}")
             return None
 
     def upload_agentic_traces(self):
         try:
             presigned_url = self._get_presigned_url()
             if presigned_url is None:
-                print("Warning: Failed to obtain presigned URL")
+                logger.warning("Warning: Failed to obtain presigned URL")
                 return False
 
             # Upload the file using the presigned URL
             upload_result = self._put_presigned_url(presigned_url, self.json_file_path)
             if not upload_result:
-                print("Error: Failed to upload file to presigned URL")
+                logger.error("Error: Failed to upload file to presigned URL")
                 return False
             elif isinstance(upload_result, tuple):
                 response, status_code = upload_result
                 if status_code not in [200, 201]:
-                    print(
-                        f"Error: Upload failed with status code {status_code}: {response.text if hasattr(response, 'text') else 'Unknown error'}")
+                    logger.error(
+                        f"Error: Uploading agentic traces failed with status code {status_code}: {response.text if hasattr(response, 'text') else 'Unknown error'}")
                     return False
             # Insert trace records
             insert_success = self.insert_traces(presigned_url)
@@ -272,13 +285,14 @@ class UploadAgenticTraces:
                 print("Error: Failed to insert trace records")
                 return False
 
-            print("Successfully uploaded agentic traces")
+            logger.info("Successfully uploaded agentic traces")
             return True
         except FileNotFoundError:
-            print(f"Error: Trace file not found at {self.json_file_path}")
+            logger.error(f"Error: Trace file not found at {self.json_file_path}")
             return False
         except ConnectionError as e:
-            print(f"Error: Network connection failed while uploading traces: {e}")
+            logger.error(f"Error: Network connection failed while uploading traces: {e}")
             return False
         except Exception as e:
-            print(f"Error while uploading agentic traces: {e}")
+            logger.error(f"Error while uploading agentic traces: {e}")
+            return False
