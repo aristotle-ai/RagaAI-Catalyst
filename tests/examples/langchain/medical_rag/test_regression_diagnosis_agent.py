@@ -243,8 +243,7 @@ def test_exclude_vital_columns():
 
 
 if __name__ == "__main__":
-    extract_trace_path()
-    run_diagnosis_agent()
+    
     test_trace_total_cost()
     test_llm_cost_calculation()
     test_export_trace_id()
