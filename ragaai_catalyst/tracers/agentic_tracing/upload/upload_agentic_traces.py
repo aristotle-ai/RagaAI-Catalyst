@@ -6,6 +6,7 @@ import time
 from urllib.parse import urlparse, urlunparse
 from urllib3.exceptions import PoolError, MaxRetryError, NewConnectionError
 from requests.exceptions import ConnectionError, Timeout, RequestException
+from http.client import RemoteDisconnected
 from .session_manager import session_manager
 
 import requests
@@ -51,7 +52,7 @@ class UploadAgenticTraces:
             start_time = time.time()
             endpoint = f"{self.base_url}/v1/llm/presigned-url"
             # Changed to POST from GET
-            response = session_manager.session.request(
+            response = session_manager.make_request_with_retry(
                 "POST", endpoint, headers=headers, data=payload, timeout=self.timeout
             )
             elapsed_ms = (time.time() - start_time) * 1000
@@ -65,7 +66,7 @@ class UploadAgenticTraces:
                 return presignedurl
             else:
                 # If POST fails, try GET
-                response = session_manager.session.request(
+                response = session_manager.make_request_with_retry(
                     "GET", endpoint, headers=headers, data=payload, timeout=self.timeout
                 )
                 elapsed_ms = (time.time() - start_time) * 1000
@@ -86,7 +87,7 @@ class UploadAgenticTraces:
                         "Authorization": f"Bearer {token}",
                         "X-Project-Name": self.project_name,
                     }
-                    response = session_manager.session.request(
+                    response = session_manager.make_request_with_retry(
                         "POST",
                         endpoint,
                         headers=headers,
@@ -113,7 +114,7 @@ class UploadAgenticTraces:
                         f"Error while getting presigned url: {response.json()['message']}"
                     )
                     return None
-        except (PoolError, MaxRetryError, NewConnectionError, ConnectionError, Timeout) as e:
+        except (PoolError, MaxRetryError, NewConnectionError, ConnectionError, Timeout, RemoteDisconnected) as e:
             session_manager.handle_request_exceptions(e, "getting presigned URL")
             return None
         except RequestException as e:
@@ -152,7 +153,7 @@ class UploadAgenticTraces:
             return False
         try:
             start_time = time.time()
-            response = session_manager.session.request(
+            response = session_manager.make_request_with_retry(
                 "PUT", presignedUrl, headers=headers, data=payload, timeout=self.timeout
             )
             elapsed_ms = (time.time() - start_time) * 1000
@@ -162,7 +163,7 @@ class UploadAgenticTraces:
             if response.status_code != 200 or response.status_code != 201:
                 return response, response.status_code
             return True
-        except (PoolError, MaxRetryError, NewConnectionError, ConnectionError, Timeout) as e:
+        except (PoolError, MaxRetryError, NewConnectionError, ConnectionError, Timeout, RemoteDisconnected) as e:
             session_manager.handle_request_exceptions(e, "uploading trace to presigned URL")
             return False
         except RequestException as e:
@@ -185,7 +186,7 @@ class UploadAgenticTraces:
         try:
             start_time = time.time()
             endpoint = f"{self.base_url}/v1/llm/insert/trace"
-            response = session_manager.session.request(
+            response = session_manager.make_request_with_retry(
                 "POST", endpoint, headers=headers, data=payload, timeout=self.timeout
             )
             elapsed_ms = (time.time() - start_time) * 1000
@@ -203,7 +204,7 @@ class UploadAgenticTraces:
                     "Content-Type": "application/json",
                     "X-Project-Name": self.project_name,
                 }
-                response = session_manager.session.request(
+                response = session_manager.make_request_with_retry(
                     "POST",
                     endpoint,
                     headers=headers,
@@ -223,7 +224,7 @@ class UploadAgenticTraces:
             else:
                 logger.error(f"Error while inserting traces: {response.json()['message']}")
                 return False
-        except (PoolError, MaxRetryError, NewConnectionError, ConnectionError, Timeout) as e:
+        except (PoolError, MaxRetryError, NewConnectionError, ConnectionError, Timeout, RemoteDisconnected) as e:
             session_manager.handle_request_exceptions(e, "inserting traces")
             return False
         except RequestException as e:

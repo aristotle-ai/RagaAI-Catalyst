@@ -6,6 +6,7 @@ from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 from urllib3.exceptions import PoolError, MaxRetryError, NewConnectionError
 from requests.exceptions import ConnectionError, Timeout
+from http.client import RemoteDisconnected
 from ragaai_catalyst import RagaAICatalyst
 import requests
 
@@ -92,11 +93,11 @@ class SessionManager:
         for i in range(num_connections):
             try:
                 # Make a lightweight HEAD request to the healthcheck endpoint to warm up the connection
-                response = self._session.head(healthcheck_url, timeout=5)
+                response = self._session.head(healthcheck_url, timeout=10)
                 logger.info(f"Warmup connection {i+1}: Status {response.status_code}")
             except Exception as e:
-                logger.warning(f"Warmup connection {i+1} failed (this is normal): {e}")
-                # Ignore failures during warmup as they're expected
+                logger.warning(f"Warmup connection {i+1} failed (this may be normal): {e}")
+                # Ignore other failures during warmup as they're expected
                 continue
 
         logger.info("Connection pool warmup completed")
@@ -118,12 +119,35 @@ class SessionManager:
             logger.error(f"Connection pool exhausted during {operation_name}: {e}")
         elif isinstance(e, NewConnectionError):
             logger.error(f"Failed to establish new connection during {operation_name}: {e}")
+        elif isinstance(e, RemoteDisconnected):
+            logger.error(f"Remote connection closed unexpectedly during {operation_name}: {e}")
         elif isinstance(e, ConnectionError):
             logger.error(f"Connection error during {operation_name}: {e}")
         elif isinstance(e, Timeout):
             logger.error(f"Request timeout during {operation_name}: {e}")
         else:
             logger.error(f"Unexpected error during {operation_name}: {e}")
+
+    def make_request_with_retry(self, method, url, **kwargs):
+        """
+        Make HTTP request with additional retry logic for RemoteDisconnected errors
+        that may not be caught by urllib3's retry mechanism.
+        """
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                response = self._session.request(method, url, **kwargs)
+                return response
+            except (RemoteDisconnected, ConnectionError) as e:
+                logger.warning(f"Connection error on attempt {attempt + 1}/{max_retries}: {e}")
+                if attempt == max_retries - 1:
+                    # Re-raise the exception on the last attempt
+                    raise
+                # Wait before retrying (exponential backoff)
+                import time
+                wait_time = 2 ** attempt
+                logger.info(f"Retrying in {wait_time} seconds...")
+                time.sleep(wait_time)
 
 
 # Global session manager instance
