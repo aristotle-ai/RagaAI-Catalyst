@@ -55,6 +55,7 @@ def create_dataset_schema_with_trace(project_name, dataset_name, base_url=None, 
         )
 
         if response.status_code in [200, 201]:
+            logger.info(f"Dataset schema created successfully: {response.status_code}")
             return response
         elif response.status_code == 401:
             logger.warning("Received 401 error during dataset schema creation. Attempting to refresh token.")
@@ -76,10 +77,10 @@ def create_dataset_schema_with_trace(project_name, dataset_name, base_url=None, 
                 return response
             else:
                 logger.error(f"Failed to create dataset schema after 401: {response.status_code}")
-                return response
+                return None
         else:
             logger.error(f"Failed to create dataset schema: {response.status_code}")
-            return response
+            return None
     except (PoolError, MaxRetryError, NewConnectionError, ConnectionError, Timeout, RemoteDisconnected) as e:
         session_manager.handle_request_exceptions(e, "creating dataset schema")
         return None
