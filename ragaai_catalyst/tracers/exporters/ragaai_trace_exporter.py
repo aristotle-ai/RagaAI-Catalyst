@@ -3,7 +3,6 @@ import logging
 import os
 import tempfile
 from dataclasses import asdict
-
 from opentelemetry.sdk.trace.export import SpanExporter, SpanExportResult
 
 from ragaai_catalyst.tracers.agentic_tracing.upload.trace_uploader import (
@@ -74,20 +73,28 @@ class RAGATraceExporter(SpanExporter):
                 trace_id = span_json.get("context").get("trace_id")
                 if trace_id is None:
                     logger.error("Trace ID is None")
+                    continue
 
-                if trace_id not in self.trace_spans:
-                    self.trace_spans[trace_id] = list()
+                # Extract dataset name from span attributes for proper isolation
+                dataset_name = self._get_dataset_from_span(span_json)
+                
+                # Create composite key (dataset_name, trace_id) for proper isolation
+                trace_key = (dataset_name, trace_id)
+                
+                if trace_key not in self.trace_spans:
+                    self.trace_spans[trace_key] = list()
 
-                self.trace_spans[trace_id].append(span_json)
+                self.trace_spans[trace_key].append(span_json)
 
+                # Check if this is a root span (parent_id is None) to process complete trace
                 if span_json["parent_id"] is None:
-                    trace = self.trace_spans[trace_id]
+                    trace = self.trace_spans[trace_key]
                     try:
-                        self.process_complete_trace(trace, trace_id)
+                        self.process_complete_trace(trace, trace_id, dataset_name)
                     except Exception as e:
                         logger.error(f"Error processing complete trace: {e}")
                     try:
-                        del self.trace_spans[trace_id]
+                        del self.trace_spans[trace_key]
                     except Exception as e:
                         logger.error(f"Error deleting trace: {e}")
             except Exception as e:
@@ -96,14 +103,82 @@ class RAGATraceExporter(SpanExporter):
 
         return SpanExportResult.SUCCESS
 
+    def _get_dataset_from_span(self, span_json):
+        """
+        Extract dataset name from a single span's attributes.
+        
+        Args:
+            span_json: Single span dictionary
+            
+        Returns:
+            str: Dataset name if found, fallback to original dataset_name otherwise
+        """
+        try:
+            attributes = span_json.get('attributes', {})
+            dataset = attributes.get('ragaai.dataset')
+            
+            if dataset:
+                logger.debug(f"Found dataset '{dataset}' in span: {span_json.get('name', 'unnamed')}")
+                return dataset
+            else:
+                # Fallback to original dataset if ragaai.dataset not found
+                logger.debug(f"No ragaai.dataset found in span: {span_json.get('name', 'unnamed')}, using fallback: {self.dataset_name}")
+                return self.dataset_name
+                
+        except Exception as e:
+            logger.error(f"Error extracting dataset from span: {e}")
+            return self.dataset_name
+
     def shutdown(self):
         # Process any remaining traces during shutdown
         logger.debug("Reached shutdown of exporter")
-        for trace_id, spans in self.trace_spans.items():
-            self.process_complete_trace(spans, trace_id)
+        for trace_key, spans in self.trace_spans.items():
+            dataset_name, trace_id = trace_key
+            self.process_complete_trace(spans, trace_id, dataset_name)
         self.trace_spans.clear()
 
-    def process_complete_trace(self, spans, trace_id):
+    def process_complete_trace(self, spans, trace_id, dataset_name=None):
+        """
+        Process a complete trace with the specified dataset.
+        
+        Args:
+            spans: List of span dictionaries for this trace
+            trace_id: The trace ID
+            dataset_name: The dataset name for this trace (from span attributes)
+        """
+        # Use the dataset name from span attributes if provided, otherwise fall back to detection
+        if dataset_name is None:
+            dataset_name = self._get_dataset_from_spans(spans)
+        
+        if dataset_name and dataset_name != self.dataset_name:
+            # Temporarily route to the target dataset
+            logger.info(f"Routing trace {trace_id} to dataset: {dataset_name}")
+            
+            # Store original values
+            original_dataset = self.dataset_name
+            original_user_details = self.user_details.copy()
+            
+            try:
+                # Update dataset for this trace
+                self.dataset_name = dataset_name
+                self.user_details["dataset_name"] = dataset_name
+                
+                # Process with updated dataset
+                self._process_trace_with_current_dataset(spans, trace_id)
+                
+            finally:
+                # Restore original values
+                self.dataset_name = original_dataset
+                self.user_details = original_user_details
+        else:
+            # Use original dataset
+            logger.debug(f"Trace {trace_id} using original dataset: {self.dataset_name}")
+            self._process_trace_with_current_dataset(spans, trace_id)
+
+    def _process_trace_with_current_dataset(self, spans, trace_id):
+        """
+        Process the trace with the current dataset (original logic from process_complete_trace).
+        """
         # Convert the trace to ragaai trace format
         try:
             ragaai_trace_details = self.prepare_trace(spans, trace_id)
@@ -123,6 +198,34 @@ class RAGATraceExporter(SpanExporter):
             self.upload_trace(ragaai_trace_details, trace_id)
         except Exception as e:
             print(f"Error uploading trace {trace_id}: {e}")
+
+    def _get_dataset_from_spans(self, spans):
+        """
+        Extract dataset name from span attributes.
+        
+        Args:
+            spans: List of span dictionaries
+            
+        Returns:
+            str: Dataset name if found, None otherwise
+        """
+        try:
+            # Look through all spans for the ragaai.dataset attribute
+            for span in spans:
+                attributes = span.get('attributes', {})
+                dataset = attributes.get('ragaai.dataset')
+                
+                if dataset:
+                    logger.debug(f"Found dataset '{dataset}' in span: {span.get('name', 'unnamed')}")
+                    return dataset
+            
+            # No dataset attribute found
+            logger.debug("No ragaai.dataset attribute found in any span")
+            return None
+            
+        except Exception as e:
+            logger.error(f"Error extracting dataset from spans: {e}")
+            return None
 
     def prepare_trace(self, spans, trace_id):
         try:
@@ -197,7 +300,7 @@ class RAGATraceExporter(SpanExporter):
                 trace_file_path = os.path.join(self.tmp_dir, f"{trace_id}.json")
                 with open(trace_file_path, "w") as file:
                     json.dump(ragaai_trace, file, cls=TracerJSONEncoder, indent=2)
-                with open(os.path.join(os.getcwd(), 'rag_agent_traces.json'), 'w') as f:
+                with open(os.path.join(os.getcwd(), f"{trace_id}.json"), 'w') as f:
                     json.dump(ragaai_trace, f, cls=TracerJSONEncoder, indent=2)
             except Exception as e:
                 print(f"Error in saving trace json: {trace_id}: {e}")

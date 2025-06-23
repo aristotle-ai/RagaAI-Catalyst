@@ -22,7 +22,7 @@ class UploadAgenticTraces:
         json_file_path,
         project_name,
         project_id,
-        dataset_name,
+        # dataset_name,
         user_detail,
         base_url,
         timeout=120,
@@ -30,10 +30,13 @@ class UploadAgenticTraces:
         self.json_file_path = json_file_path
         self.project_name = project_name
         self.project_id = project_id
-        self.dataset_name = dataset_name
+        # self.dataset_name = dataset_name
         self.user_detail = user_detail
         self.base_url = base_url
         self.timeout = timeout
+        with open(self.json_file_path) as f:
+            data = json.load(f)
+        self.dataset_name = data["data"][0].get("spans", [{}])[0].get("attributes", {}).get("ragaai.dataset", "")
 
     def _get_presigned_url(self):
         payload = json.dumps(
