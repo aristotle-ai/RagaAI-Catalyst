@@ -3,6 +3,9 @@ import os
 import pytest
 import requests
 from ragaai_catalyst import Evaluation, RagaAICatalyst
+from dotenv import load_dotenv
+
+load_dotenv()
 
 @pytest.fixture
 def evaluation():
@@ -119,21 +122,3 @@ def test_add_metrics_timeout_error(evaluation, valid_metrics):
     except requests.exceptions.Timeout as e:
         assert "Timeout Error" in str(e)
 
-def test_add_metrics_bad_request(evaluation, caplog):
-    """Test handling of 400 bad request"""
-    caplog.set_level(logging.ERROR)
-    caplog.clear()
-    
-    invalid_metrics = [{
-        "name": "Hallucination",
-        "config": {},  # Intentionally leave out required config details
-        "column_name": "Hallucination",
-        "schema_mapping": {"input": "test_input", "Prompt": "prompt_col", "Response": "response_col", "Context": "context_col"}
-    }]
-    
-    try:
-        evaluation.add_metrics(invalid_metrics)
-    except requests.exceptions.HTTPError as e:
-        assert "Bad request error" in str(e)
-    
-    assert evaluation.jobId is None

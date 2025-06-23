@@ -7,15 +7,16 @@ from ragaai_catalyst import RagaAICatalyst
 # Enable debug logging for tests
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger("TestRagaAICatalyst")
+from dotenv import load_dotenv
+load_dotenv()
 
 class TestRagaAICatalystRealAPI(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         # Load credentials from environment variables
         cls.access_key = os.getenv("RAGAAI_CATALYST_ACCESS_KEY")
-        cls.secret_key = os.getenv("RAGAAI_CATALYST_SECRET_KEY")
-        cls.base_url = os.getenv("RAGAAI_CATALYST_BASE_URL", "https://catalyst.raga.ai/api")
-        
+        cls.secret_key = os.getenv("RAGAAI_CATALYST_SECRET_KEY")        
+        cls.base_url = os.getenv("RAGAAI_CATALYST_BASE_URL", "https://llm-dev5.ragaai.ai/api")
         # Skip tests if credentials are missing
         if not cls.access_key or not cls.secret_key:
             raise unittest.SkipTest("API credentials not found in environment variables")
