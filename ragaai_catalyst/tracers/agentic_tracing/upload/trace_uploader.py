@@ -240,12 +240,14 @@ def process_upload(task_id: str, filepath: str, hash_id: str, zip_path: str,
                     user_details=user_details,
                     timeout=timeout
                 )
-                logger.info(f"Dataset schema created: {response}")
-
-                # Cache the response only if status code is 200
-                if response and hasattr(response, 'status_code') and response.status_code in [200, 201]:
+                if response is None:
+                    logger.error(f"Dataset schema creation failed for {dataset_name} - received None response")
+                elif hasattr(response, 'status_code') and response.status_code in [200, 201]:
+                    logger.info(f"Dataset schema created successfully: {response.status_code}")
                     _cache_dataset_creation(cache_key, response)
                     logger.info(f"Response cached successfully for dataset: {dataset_name} and key: {cache_key}")
+                else:
+                    logger.warning(f"Dataset schema creation returned unexpected response: {response}")
 
             except Exception as e:
                 logger.error(f"Error creating dataset schema: {e}")
