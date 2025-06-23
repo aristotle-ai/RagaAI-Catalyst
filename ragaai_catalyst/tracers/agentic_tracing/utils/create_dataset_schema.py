@@ -26,7 +26,7 @@ def create_dataset_schema_with_trace(project_name, dataset_name, base_url=None, 
         "Authorization": f"Bearer {os.getenv('RAGAAI_CATALYST_TOKEN')}",
         "X-Project-Name": project_name,
     }
-
+    logger.info(f"Header for dataset logs api")
     if SCHEMA_MAPPING:
         payload = json.dumps({
             "datasetName": dataset_name,
