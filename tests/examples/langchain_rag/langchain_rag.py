@@ -33,9 +33,9 @@ os.environ['GOOGLE_API_KEY'] = os.getenv('GOOGLE_API_KEY')
 # )
 
 catalyst = RagaAICatalyst(
-    access_key="jv3B4OIxKY9pn2cYjXni",
-    secret_key="1MPr3pEYDjlbQzPaLxbEAqskNHcdDHHrhmgfvY3b",
-    base_url="http://4.240.58.193/api"
+    access_key=os.getenv('RAGAAI_CATALYST_ACCESS_KEY'), 
+    secret_key=os.getenv('RAGAAI_CATALYST_SECRET_KEY'), 
+    base_url=os.getenv('RAGAAI_CATALYST_BASE_URL')
 )
 
 project_name = "qa_app"
