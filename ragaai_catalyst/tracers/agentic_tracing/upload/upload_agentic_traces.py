@@ -9,8 +9,6 @@ from requests.exceptions import ConnectionError, Timeout, RequestException
 from http.client import RemoteDisconnected
 from .session_manager import session_manager
 
-import requests
-
 logger = logging.getLogger(__name__)
 
 from ragaai_catalyst.ragaai_catalyst import RagaAICatalyst
