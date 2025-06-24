@@ -77,6 +77,9 @@ class RAGATraceExporter(SpanExporter):
 
                 if trace_id not in self.trace_spans:
                     self.trace_spans[trace_id] = list()
+                
+                if span_json.get("attributes").get("openinference.span.kind", None) is None:
+                    span_json["attributes"]["openinference.span.kind"] = "UNKNOWN"
 
                 self.trace_spans[trace_id].append(span_json)
 
