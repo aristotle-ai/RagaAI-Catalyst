@@ -1,4 +1,3 @@
-from .experiment import Experiment
 from .ragaai_catalyst import RagaAICatalyst
 from .utils import response_checker
 from .dataset import Dataset
@@ -15,7 +14,6 @@ from .redteaming import RedTeaming
 
 
 __all__ = [
-    "Experiment", 
     "RagaAICatalyst", 
     "Tracer", 
     "PromptManager", 
