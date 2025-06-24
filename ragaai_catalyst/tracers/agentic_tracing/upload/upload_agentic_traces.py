@@ -63,7 +63,7 @@ class UploadAgenticTraces:
                 presignedurl = self.update_presigned_url(presignedURLs, self.base_url)
                 return presignedurl
             elif response.status_code == 401:
-                logger.warning("Received 401 error. Attempting to refresh token.")
+                logger.warning("Received 401 error while getting presign url. Attempting to refresh token.")
                 token = RagaAICatalyst.get_token(force_refresh=True)
                 headers = {
                     "Content-Type": "application/json",
@@ -89,7 +89,7 @@ class UploadAgenticTraces:
             else:
                 # If POST fails, try GET
                 logger.warning(
-                    f"POST request failed for presign url with status{response.status_code}.Falling back to GET request.")
+                    f"POST request failed for getting presign url with status{response.status_code}.Falling back to GET request.")
                 response = session_manager.make_request_with_retry(
                     "GET", endpoint, headers=headers, data=payload, timeout=self.timeout
                 )
@@ -104,7 +104,7 @@ class UploadAgenticTraces:
                     )
                     return presignedurl
                 elif response.status_code == 401:
-                    logger.warning("Received 401 error. Attempting to refresh token.")
+                    logger.warning("Received 401 error while getting presign url. Attempting to refresh token.")
                     token = RagaAICatalyst.get_token(force_refresh=True)
                     headers = {
                         "Content-Type": "application/json",
@@ -130,7 +130,7 @@ class UploadAgenticTraces:
                         return presignedurl
                     else:
                         logger.error(
-                            f"Error while getting presigned url: {response.json()['message']}"
+                            f"Error while getting presigned url after token refresh: {response.json()['message']}"
                         )
                         return None
                 else:
