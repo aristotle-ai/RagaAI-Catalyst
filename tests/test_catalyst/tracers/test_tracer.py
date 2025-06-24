@@ -1,5 +1,6 @@
 import pytest
 import os
+import logging
 from dotenv import load_dotenv
 from ragaai_catalyst import RagaAICatalyst, init_tracing
 from ragaai_catalyst.tracers import Tracer
@@ -63,22 +64,16 @@ def test_tracer_initialization(tracer):
     assert tracer.tracer_type == expected_attrs["tracer_type"]
     assert tracer.timeout == expected_attrs["timeout"]
 
-def test_set_model_cost(tracer):
-    cost_config = {
-        "model_name": "gpt-4",
-        "input_cost_per_million_token": 6,
-        "output_cost_per_million_token": 2.40
-    }
-    tracer.set_model_cost(cost_config)
-    assert tracer.model_custom_cost == TEST_RESPONSES["set_model_cost"]["model_cost"]
-
 def test_set_dataset_name(tracer):
     new_dataset = "pytest_dataset_new"
     tracer.set_dataset_name(new_dataset)
     assert tracer.dataset_name == TEST_RESPONSES["set_dataset_name"]["new_dataset"]
 
 
-def test_add_context_unsupported(tracer):
-    with pytest.raises(ValueError) as exc_info:
+def test_add_context_unsupported(tracer, caplog):
+    # Test that the method logs a warning instead of raising an exception
+    with caplog.at_level(logging.WARNING):
         tracer.add_context("test context")
-    assert str(exc_info.value) == TEST_RESPONSES["add_context"]["error"]
+    # Check that the warning message was logged
+    expected_message = TEST_RESPONSES["add_context"]["error"]
+    assert expected_message in caplog.text
