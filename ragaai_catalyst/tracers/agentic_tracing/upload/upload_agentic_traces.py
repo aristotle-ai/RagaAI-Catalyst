@@ -62,8 +62,34 @@ class UploadAgenticTraces:
                 presignedURLs = response.json()["data"]["presignedUrls"][0]
                 presignedurl = self.update_presigned_url(presignedURLs, self.base_url)
                 return presignedurl
+            elif response.status_code == 401:
+                logger.warning("Received 401 error. Attempting to refresh token.")
+                token = RagaAICatalyst.get_token(force_refresh=True)
+                headers = {
+                    "Content-Type": "application/json",
+                    "Authorization": f"Bearer {token}",
+                    "X-Project-Name": self.project_name,
+                }
+                response = session_manager.make_request_with_retry(
+                    "POST", endpoint, headers=headers, data=payload, timeout=self.timeout
+                )
+                elapsed_ms = (time.time() - start_time) * 1000
+                logger.debug(
+                    f"API Call: [POST] {endpoint} | Status: {response.status_code} | Time: {elapsed_ms:.2f}ms"
+                )
+                if response.status_code == 200:
+                    presignedURLs = response.json()["data"]["presignedUrls"][0]
+                    presignedurl = self.update_presigned_url(presignedURLs, self.base_url)
+                    return presignedurl
+                else:
+                    logger.error(
+                        f"Error while getting presigned url after token refresh: {response.json()['message']}"
+                    )
+                    return None
             else:
                 # If POST fails, try GET
+                logger.warning(
+                    f"POST request failed for presign url with status{response.status_code}.Falling back to GET request.")
                 response = session_manager.make_request_with_retry(
                     "GET", endpoint, headers=headers, data=payload, timeout=self.timeout
                 )
