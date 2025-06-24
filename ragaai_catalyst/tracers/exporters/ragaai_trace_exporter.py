@@ -80,9 +80,12 @@ class RAGATraceExporter(SpanExporter):
                 
                 # Create composite key (dataset_name, trace_id) for proper isolation
                 trace_key = (dataset_name, trace_id)
-                
+                                
                 if trace_key not in self.trace_spans:
-                    self.trace_spans[trace_key] = list()
+                    if span_json.get("attributes").get("openinference.span.kind", None) is None:
+                    span_json["attributes"]["openinference.span.kind"] = "UNKNOWN"
+
+                self.trace_spans[trace_key] = list()
 
                 self.trace_spans[trace_key].append(span_json)
 
