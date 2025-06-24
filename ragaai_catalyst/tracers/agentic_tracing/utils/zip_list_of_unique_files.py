@@ -7,6 +7,8 @@ import re
 import ast
 import importlib.util
 import json
+from typing import List, Optional, Tuple
+
 import ipynbname
 from copy import deepcopy
 
@@ -460,8 +462,14 @@ class TraceDependencyTracker:
         logger.debug(f"Zip file created successfully at: {zip_filename}")
         return hash_id, zip_filename
 
-def zip_list_of_unique_files(filepaths, output_dir=None):
+def zip_list_of_unique_files(
+        filepaths: List[str],
+        output_dir: Optional[str] = None
+) -> Tuple[str, str]:
     """Create a zip file containing all unique files and their dependencies."""
+    if not filepaths:
+        logger.warning("The filepaths list is empty. Proceeding with an empty ZIP archive.")
+        filepaths = []
     if output_dir is None:
         # Set default output directory based on environment
         if JupyterNotebookHandler.is_running_in_colab():

@@ -1,43 +1,56 @@
 import os
 import json
-import re
 import requests
+import logging
+from typing import Optional
 from ragaai_catalyst import RagaAICatalyst
 
-def create_dataset_schema_with_trace(project_name, dataset_name, base_url=None, user_details=None, timeout=120):
-    SCHEMA_MAPPING = {}
-    metadata = user_details.get("trace_user_detail").get("metadata")
-    if metadata and isinstance(metadata, dict):
-        for key, value in metadata.items():
-            if key in ["log_source", "recorded_on"]:
-                continue
-            SCHEMA_MAPPING[key] = {"columnType": "metadata"}
+IGNORED_KEYS = {"log_source", "recorded_on"}
+logger = logging.getLogger(__name__)
 
-    def make_request():
-        headers = {
-            "Content-Type": "application/json",
-            "Authorization": f"Bearer {os.getenv('RAGAAI_CATALYST_TOKEN')}",
-            "X-Project-Name": project_name,
-        }
-        if SCHEMA_MAPPING:
-            payload = json.dumps({
-                "datasetName": dataset_name,
-                "traceFolderUrl": None,
-                "schemaMapping": SCHEMA_MAPPING
-            })
-        else:
-            payload = json.dumps({
-                "datasetName": dataset_name,
-                "traceFolderUrl": None,
-            })
-        # Use provided base_url or fall back to default
-        url_base = base_url if base_url is not None else RagaAICatalyst.BASE_URL
-        response = requests.request("POST",
-            f"{url_base}/v1/llm/dataset/logs",
-            headers=headers,
-            data=payload,
-            timeout=timeout
-        )
-        return response
-    response = make_request()
+def create_dataset_schema_with_trace(
+        project_name: str,
+        dataset_name: str,
+        base_url: Optional[str] = None,
+        user_details: Optional[dict] = None,
+        timeout: int = 120) -> requests.Response:
+    schema_mapping = {}
+
+    metadata = (
+        user_details.get("trace_user_detail", {}).get("metadata", {})
+        if user_details else {}
+    )
+    if isinstance(metadata, dict):
+        for key, value in metadata.items():
+            if key in IGNORED_KEYS:
+                continue
+            schema_mapping[key] = {"columnType": "metadata"}
+
+    payload = {
+        "datasetName": dataset_name,
+        "traceFolderUrl": None,
+    }
+    if schema_mapping:
+        payload["schemaMapping"] = schema_mapping
+
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {os.getenv('RAGAAI_CATALYST_TOKEN')}",
+        "X-Project-Name": project_name,
+    }
+
+    # Use provided base_url or fall back to default
+    if base_url is None:
+        logger.warning("base_url is not provided, using default: %s", RagaAICatalyst.BASE_URL)
+        base_url = RagaAICatalyst.BASE_URL
+
+    response = requests.post(
+        f"{base_url}/v1/llm/dataset/logs",
+        headers=headers,
+        data=json.dumps(payload),
+        timeout=timeout
+    )
+    if not response.ok:
+        print(f"Request failed: {response.status_code} - {response.text}")
+
     return response
