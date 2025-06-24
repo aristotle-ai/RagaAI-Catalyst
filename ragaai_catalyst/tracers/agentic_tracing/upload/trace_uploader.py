@@ -481,7 +481,8 @@ def submit_upload_task(filepath, hash_id, zip_path, project_name, project_id, da
         
         return task_id
     except RuntimeError as e:
-        if "cannot schedule new futures after shutdown" in str(e):
+        if any(msg in str(e) for msg in
+               ("cannot schedule new futures after shutdown", "cannot schedule new futures after interpreter shutdown")):
             logger.warning(f"Executor already shut down, falling back to synchronous processing: {e}")
             return do_sync_processing()
         else:
