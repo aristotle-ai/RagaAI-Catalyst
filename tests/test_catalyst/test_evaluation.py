@@ -8,10 +8,11 @@ import pandas as pd
 from datetime import datetime 
 from typing import Dict, List
 from ragaai_catalyst import Evaluation, RagaAICatalyst
-
+from dotenv import load_dotenv
+load_dotenv()
 # Simplified model configurations
 MODEL_CONFIGS = [
-    {"provider": "openai", "model": "gpt-4"},  # Only one OpenAI model
+    {"provider": "openai", "model": "gpt-4o-mini"},  # Only one OpenAI model
     # {"provider": "gemini", "model": "gemini-1.5-flash"}  # Only one Gemini model
 ]
 
@@ -84,6 +85,31 @@ def test_project_does_not_exist(caplog):
     
     # Verify the error message was logged
     assert "Project not found. Please enter a valid project name" in caplog.text
+import pdb
+pdb.set_trace()
+def test_list_metrics(evaluation):
+    """Test if list_metrics returns the expected metrics"""
+    # Call the list_metrics method
+    # import pdb
+    # pdb.set_trace()
+    metrics = evaluation.list_metrics()
+    import pdb
+    pdb.set_trace()
+    print(metrics)
+    
+    # Check that the result is a list
+    assert isinstance(metrics, list), "list_metrics should return a list"
+    
+    # Check that the result is not empty
+    assert len(metrics) > 0, "list_metrics should return a non-empty list"
+    
+    # Check that at least some of the core metrics are in the list
+    for metric in CORE_METRICS:
+        assert metric in metrics, f"Expected metric '{metric}' not found in the list"
+        
+    # Check that some chat metrics are in the list
+    for metric in CHAT_METRICS:
+        assert metric in metrics, f"Expected chat metric '{metric}' not found in the list"
 
 @pytest.mark.parametrize("provider_config", MODEL_CONFIGS)
 def test_metric_validation_checks(evaluation, provider_config, caplog):

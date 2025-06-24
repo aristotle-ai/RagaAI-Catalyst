@@ -33,17 +33,11 @@ def dataset(base_url, access_keys):
     return Dataset(project_name="prompt_metric_dataset")
 
 # Fix test_list_dataset to assert on the return value instead of using return
-def test_list_dataset(dataset):
+def test_list_dataset(dataset): #project name which has dataset assert dataset list should be same 
     """Test retrieving dataset list"""
     datasets = dataset.list_datasets()
     assert isinstance(datasets, list)
     assert len(datasets) > 0  # Check that we get a non-empty list
-
-
-# def test_get_dataset_columns(dataset)  -> List[str]:
-#     dataset_column = dataset.get_dataset_columns(dataset_name="schema_metric_dataset_ritika_3")
-#     return dataset_column
-
 
 def test_incorrect_dataset(dataset, caplog):
     """Test error handling for non-existent dataset"""
@@ -63,6 +57,19 @@ def test_get_schema_mapping(dataset):
     schema_mapping_columns = dataset.get_schema_mapping()
     assert isinstance(schema_mapping_columns, list)
     assert len(schema_mapping_columns) > 0
+    
+    # Assert all expected column names are present in the schema mapping
+    expected_elements = [
+        'traceId', 'prompt', 'context', 'response', 'timestamp', 
+        'expected_context', 'expected_response', 'system_prompt', 
+        'metadata', 'pipeline', 'alternate_response', 'prompt_tokens', 
+        'completion_tokens', 'cost', 'feedBack', 'latency', 'tags', 
+        'traceUri', 'externalId', 'chat', 'chatId', 'instruction', 
+        'chatSequence'
+    ]
+    for element in expected_elements:
+        assert element in schema_mapping_columns, f"Schema element '{element}' not found"
+    #print shema mapping assert
 
 
 def test_upload_csv(dataset):
@@ -75,17 +82,19 @@ def test_upload_csv(dataset):
         'ExpectedResponse': 'expected_response',
     }
 
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S") 
-    dataset_name = f"schema_metric_dataset_ritika_{timestamp}"  
-
-    
+    # Use a fixed name instead of a timestamp to make the test more deterministic
+    dataset_name = "schema_metric_dataset_ritika_12"
 
     dataset.create_from_csv(
         csv_path=csv_path,
         dataset_name=dataset_name,
         schema_mapping=schema_mapping
     )
-
+    
+    # Get the updated list of datasets after creation
+    datasets = dataset.list_datasets()
+    assert dataset_name in datasets, f"Dataset {dataset_name} not found in {datasets}"
+    
 # Fix test_upload_csv_repeat_dataset to check for log message
 def test_upload_csv_repeat_dataset(dataset, caplog):
     """Test error handling for duplicate dataset name"""
@@ -96,14 +105,14 @@ def test_upload_csv_repeat_dataset(dataset, caplog):
         'Context': 'context',
         'ExpectedResponse': 'expected_response',
     }
+    dataset_name = "schema_metric_dataset_ritika_12"  # Remove the trailing comma
 
     result = dataset.create_from_csv(
         csv_path=csv_path,
-        dataset_name="schema_metric_dataset_ritika_3",
+        dataset_name=dataset_name,
         schema_mapping=schema_mapping
     )
-    assert "Dataset name schema_metric_dataset_ritika_3 already exists" in caplog.text
-
+    assert f"Dataset name {dataset_name} already exists" in caplog.text
 
 def test_upload_csv_no_schema_mapping(dataset):
     with pytest.raises(TypeError, match="missing 1 required positional argument"):
