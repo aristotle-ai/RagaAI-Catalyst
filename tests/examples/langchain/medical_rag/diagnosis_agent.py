@@ -22,13 +22,17 @@ from dotenv import load_dotenv
 load_dotenv()
 
 catalyst = RagaAICatalyst(
-    access_key=os.getenv('RAGAAI_CATALYST_ACCESS_KEY'), 
-    secret_key=os.getenv('RAGAAI_CATALYST_SECRET_KEY'), 
-    base_url=os.getenv('RAGAAI_CATALYST_BASE_URL')
+    access_key="gHjZohe6ilpNR1Zg3Idl", 
+    secret_key="nePjNh4T98RC5QRAM21v7OpdeAiSS5h1bNY4pshJ", 
+    base_url="https://llm-dev5.ragaai.ai/api"
+    # access_key="2mYW8Rv8gg55UcYMJZPf", 
+    # secret_key="E4VB32AlaNAt9YJOcSgRvjhhugBeTGyP0rUUdqnP", 
+    # base_url="http://4.247.153.176/api"
 )
+
 tracer = Tracer(
-    project_name= 'testing_v', #os.getenv("RAGAAI_PROJECT_NAME"),
-    dataset_name= 'testing_v_dataset', #os.getenv("RAGAAI_DATASET_NAME"),
+    project_name='bug_test2',#os.getenv("RAGAAI_PROJECT_NAME"),
+    dataset_name='langchain',#os.getenv("RAGAAI_DATASET_NAME"),
     tracer_type="agentic/langchain",
 )
 

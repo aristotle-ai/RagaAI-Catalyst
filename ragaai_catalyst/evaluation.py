@@ -39,8 +39,6 @@ class Evaluation:
             ]
             if project_name not in project_list:
                 logger.error("Project not found. Please enter a valid project name")
-                # raise IndexError("Project not found")
-                
             
             self.project_id = [
                 project["id"] for project in response.json()["data"]["content"] if project["name"] == project_name
@@ -183,14 +181,10 @@ class Evaluation:
 
 
     def _get_mapping(self, metric_name, metrics_schema, schema_mapping):
+        
         mapping = []
-        # Check if metrics_schema is None or empty
-        if not metrics_schema:
-            logger.error(f"Failed to get metrics schema for {metric_name}")
-            return mapping
-            
         for schema in metrics_schema:
-            if schema["name"] == metric_name:
+            if schema["name"]==metric_name:
                 requiredFields = schema["config"]["requiredFields"]
 
                 #this is added to check if "Chat" column is required for metric evaluation
@@ -205,7 +199,6 @@ class Evaluation:
                     variableName = self._get_variablename_from_user_schema_mapping(schemaName, metric_name, schema_mapping, metric_to_evaluate)
                     mapping.append({"schemaName": schemaName, "variableName": variableName})
         return mapping
-        
 
     def _get_metricParams(self):
         return {
@@ -261,22 +254,18 @@ class Evaluation:
             #pasing model configuration
             for key, value in metric["config"].items():
                 #checking if provider is one of the allowed providers
-                if key.lower() == "threshold":
-    # Check if value is a dictionary
-                    if isinstance(value, dict):
-                        if len(value) > 1:
-                            logger.error("'threshold' can only take one argument gte/lte/eq")
-                        else:
-                            for key_thres, value_thres in value.items():
-                                base_json["metricSpec"]["config"]["params"][key] = {f"{key_thres}":value_thres}
-                    # Handle numeric threshold (float/int)
-                    elif isinstance(value, (float, int)):
-                        # Direct assignment for numeric threshold
-                        base_json["metricSpec"]["config"]["params"][key] = {"value": value}
+                if key.lower()=="provider" and value.lower() not in sub_providers:
+                    logger.error("Enter a valid provider name. The following Provider names are supported: openai, azure, gemini, groq, anthropic, bedrock")
+    
+                if key.lower()=="threshold":
+                    if len(value)>1:
+                        logger.error("'threshold' can only take one argument gte/lte/eq")
                     else:
-                        logger.error(f"Unsupported threshold type: {type(value)}")
+                        for key_thres, value_thres in value.items():
+                            base_json["metricSpec"]["config"]["params"][key] = {f"{key_thres}":value_thres}
                 else:
                     base_json["metricSpec"]["config"]["params"][key] = {"value": value}
+
 
             # if metric["config"]["model"]:
             #     base_json["metricSpec"]["config"]["params"]["model"]["value"] = metric["config"]["model"]
@@ -318,13 +307,12 @@ class Evaluation:
             return []
 
     def add_metrics(self, metrics):
-    #Handle required key if missing
+        #Handle required key if missing
         required_keys = {"name", "config", "column_name", "schema_mapping"}
         for metric in metrics:
             missing_keys = required_keys - metric.keys()
             if missing_keys:
                 logger.error(f"{missing_keys} required for each metric evaluation.")
-                # raise ValueError(f"{missing_keys} required for each metric evaluation.")
 
         executed_metric_list = self._get_executed_metrics_list()
         metrics_name = self.list_metrics()

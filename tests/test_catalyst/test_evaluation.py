@@ -85,17 +85,11 @@ def test_project_does_not_exist(caplog):
     
     # Verify the error message was logged
     assert "Project not found. Please enter a valid project name" in caplog.text
-import pdb
-pdb.set_trace()
 def test_list_metrics(evaluation):
     """Test if list_metrics returns the expected metrics"""
     # Call the list_metrics method
-    # import pdb
-    # pdb.set_trace()
+
     metrics = evaluation.list_metrics()
-    import pdb
-    pdb.set_trace()
-    print(metrics)
     
     # Check that the result is a list
     assert isinstance(metrics, list), "list_metrics should return a list"
