@@ -328,6 +328,42 @@ def test_exclude_vital_columns():
         is_redacted, redacted_path = check_nested_values(trace_data, column)
         assert not is_redacted, f"Vital column {column} should not be redacted, found at {redacted_path}"
 
+def test_span_kind_not_null():
+    """
+    Test that verifies the 'kind' field in each span is not null.
+    This ensures that all spans have a properly defined kind value.
+    """
+    # Load the trace file
+    trace_file_path = os.path.join(
+        Path(__file__).resolve().parent, 
+        "rag_agent_traces.json"
+    )
+    
+    # Load the trace file
+    with open(trace_file_path, 'r') as f:
+        trace_data = json.load(f)
+    
+    # Print which test is running
+    print("\nTesting for non-null 'kind' field in spans:")
+    
+    # Check that data field exists and contains spans
+    assert "data" in trace_data, "Trace data should have a 'data' field"
+    assert len(trace_data["data"]) > 0, "Trace data should have at least one data entry"
+    assert "spans" in trace_data["data"][0], "Trace data should have spans in the first data entry"
+    
+    # Check each span for non-null kind field
+    spans = trace_data["data"][0]["spans"]
+    invalid_spans = []
+    
+    for i, span in enumerate(spans):
+        if "kind" not in span or span["kind"] is None or span["kind"] == "":
+            invalid_spans.append(i)
+            print(f"  - Span {i} ({span.get('name', 'unnamed')}) has null or missing 'kind' field")
+    
+    # Assert that no spans have a null kind field
+    assert len(invalid_spans) == 0, f"Found {len(invalid_spans)} spans with null or missing 'kind' field"
+    print(f"  - All {len(spans)} spans have valid 'kind' field")
+
 @pytest.fixture(scope="session", autouse=True)
 def setup_traces():
     """
@@ -367,5 +403,6 @@ if __name__ == "__main__":
         test_export_trace_metadata()
         test_export_trace_data()
         test_exclude_vital_columns()
+        test_span_kind_not_null()
     else:
         print("ERROR: Could not generate trace file. Tests cannot be run.")
