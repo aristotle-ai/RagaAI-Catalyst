@@ -73,7 +73,12 @@ class RAGATraceExporter(SpanExporter):
                 trace_id = span_json.get("context").get("trace_id")
                 if trace_id is None:
                     logger.error("Trace ID is None")
-                    continue
+                
+                if trace_id not in self.trace_spans:
+                    self.trace_spans[trace_id] = list()
+                
+                if span_json.get("attributes").get("openinference.span.kind", None) is None:
+                    span_json["attributes"]["openinference.span.kind"] = "UNKNOWN"
 
                 # Extract dataset name from span attributes for proper isolation
                 dataset_name = self._get_dataset_from_span(span_json)
@@ -82,10 +87,7 @@ class RAGATraceExporter(SpanExporter):
                 trace_key = (dataset_name, trace_id)
                                 
                 if trace_key not in self.trace_spans:
-                    if span_json.get("attributes").get("openinference.span.kind", None) is None:
-                    span_json["attributes"]["openinference.span.kind"] = "UNKNOWN"
-
-                self.trace_spans[trace_key] = list()
+                    self.trace_spans[trace_key] = list()
 
                 self.trace_spans[trace_key].append(span_json)
 
