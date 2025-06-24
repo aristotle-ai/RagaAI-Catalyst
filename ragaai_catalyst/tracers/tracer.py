@@ -170,7 +170,7 @@ class Tracer(AgenticTracing):
             logger.error(f"Failed to retrieve projects list: {e}")
 
         # Handle agentic tracers
-        if tracer_type == "agentic" or tracer_type.startswith("agentic/") or tracer_type == "langchain" or tracer_type == "google-adk":
+        if tracer_type == "agentic" or tracer_type.startswith("agentic/") or tracer_type == "langchain" or tracer_type == "llamaindex" or tracer_type == "google-adk":
             # Setup instrumentors based on tracer type
             instrumentors = []
 
