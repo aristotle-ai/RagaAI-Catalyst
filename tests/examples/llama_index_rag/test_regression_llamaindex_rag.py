@@ -183,18 +183,18 @@ def test_exclude_vital_columns():
     """
     Test that verifies vital columns are excluded while masking.
     This test checks that fields like model_name, cost, latency, span_id, trace_id, etc.
-    are not present in the exported trace data.
+    are not present in the exported trace data or redacted with <REDACTED TEXT>.
     """
     # Load the trace file
     trace_file_path = os.path.join(
         Path(__file__).resolve().parent, 
         "rag_agent_traces.json"
     )
-    
+
     # Load the trace file
     with open(trace_file_path, 'r') as f:
         trace_data = json.load(f)
-    
+
     # Define the vital columns that should be excluded
     vital_columns = [
         "model_name",
@@ -203,10 +203,32 @@ def test_exclude_vital_columns():
         "span_id",
         "trace_id"
     ]
-    
-    # Check that each vital column is not present in the trace data
+
+    def check_nested_values(data, column_name, path=""):
+        """Recursively search for the column in nested data and check if it's redacted"""
+        if isinstance(data, dict):
+            for key, value in data.items():
+                current_path = f"{path}.{key}" if path else key
+                if key == column_name and value == "<REDACTED TEXT>":
+                    return True, current_path
+                found, found_path = check_nested_values(value, column_name, current_path)
+                if found:
+                    return True, found_path
+        elif isinstance(data, list):
+            for i, item in enumerate(data):
+                found, found_path = check_nested_values(item, column_name, f"{path}[{i}]")
+                if found:
+                    return True, found_path
+        return False, ""
+
+    # Check that each vital column is not present in the top level of trace data
     for column in vital_columns:
-        assert column not in trace_data, f"Expected {column} to be excluded from trace data"
+        assert column not in trace_data, f"Expected {column} to be excluded from top-level trace data"
+
+    # Check that each vital column does not have "<REDACTED TEXT>" value anywhere in the trace data
+    for column in vital_columns:
+        is_redacted, redacted_path = check_nested_values(trace_data, column)
+        assert not is_redacted, f"Vital column {column} should not be redacted, found at {redacted_path}"
 
 def test_export_trace_id():
     """
@@ -513,7 +535,41 @@ def test_error_cost():
                 print(openai_cost)
                 assert openai_cost == 0, \
                     f"Expected cost should be 0, it is coming {openai_cost}"
+def test_span_kind_not_null():
+    """
+    Test that verifies the 'kind' field in each span is not null.
+    This ensures that all spans have a properly defined kind value.
+    """
+    # Load the trace file
+    trace_file_path = os.path.join(
+        Path(__file__).resolve().parent, 
+        "rag_agent_traces.json"
+    )
 
+    # Load the trace file
+    with open(trace_file_path, 'r') as f:
+        trace_data = json.load(f)
+
+    # Print which test is running
+    print("\nTesting for non-null 'kind' field in spans:")
+
+    # Check that data field exists and contains spans
+    assert "data" in trace_data, "Trace data should have a 'data' field"
+    assert len(trace_data["data"]) > 0, "Trace data should have at least one data entry"
+    assert "spans" in trace_data["data"][0], "Trace data should have spans in the first data entry"
+
+    # Check each span for non-null kind field
+    spans = trace_data["data"][0]["spans"]
+    invalid_spans = []
+
+    for i, span in enumerate(spans):
+        if "kind" not in span or span["kind"] is None or span["kind"] == "":
+            invalid_spans.append(i)
+            print(f"  - Span {i} ({span.get('name', 'unnamed')}) has null or missing 'kind' field")
+
+    # Assert that no spans have a null kind field
+    assert len(invalid_spans) == 0, f"Found {len(invalid_spans)} spans with null or missing 'kind' field"
+    print(f"  - All {len(spans)} spans have valid 'kind' field")
 if __name__ == "__main__":
     test_trace_total_cost()
     test_span_cost_consistency()
