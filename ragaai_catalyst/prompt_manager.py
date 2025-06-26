@@ -5,6 +5,7 @@ import re
 from .ragaai_catalyst import RagaAICatalyst
 import copy
 import logging
+import time
 from urllib3.exceptions import PoolError, MaxRetryError, NewConnectionError
 from requests.exceptions import ConnectionError, Timeout, RequestException
 from http.client import RemoteDisconnected
@@ -33,6 +34,7 @@ class PromptManager:
         self.headers = {}
 
         try:
+            start_time = time.time()
             response = session_manager.make_request_with_retry(
                 "GET",
                 f"{RagaAICatalyst.BASE_URL}/v2/llm/projects?size={self.size}",
@@ -41,15 +43,45 @@ class PromptManager:
                 },
                 timeout=self.timeout,
             )
-            response.raise_for_status()
-            # logger.debug("Projects list retrieved successfully")
+            elapsed_ms = (time.time() - start_time) * 1000
+            logger.debug(f"API Call: [GET] /v2/llm/projects | Status: {response.status_code} | Time: {elapsed_ms:.2f}ms")
 
-            project_list = [
-                project["name"] for project in response.json()["data"]["content"]
-            ]
-            self.project_id = [
-            project["id"] for project in response.json()["data"]["content"] if project["name"]==project_name
-            ][0]
+            if response.status_code in [200, 201]:
+                # logger.debug("Projects list retrieved successfully")
+                project_list = [
+                    project["name"] for project in response.json()["data"]["content"]
+                ]
+                self.project_id = [
+                project["id"] for project in response.json()["data"]["content"] if project["name"]==project_name
+                ][0]
+            elif response.status_code == 401:
+                logger.warning("Received 401 error during fetching project list. Attempting to refresh token.")
+                token = RagaAICatalyst.get_token(force_refresh=True)
+                headers = {
+                    "Authorization": f"Bearer {token}",
+                }
+                start_time = time.time()
+                response = session_manager.make_request_with_retry(
+                    "GET", f"{RagaAICatalyst.BASE_URL}/v2/llm/projects?size={self.size}", 
+                    headers=headers, timeout=self.timeout
+                )
+                elapsed_ms = (time.time() - start_time) * 1000
+                logger.debug(f"API Call: [GET] /v2/llm/projects (retry) | Status: {response.status_code} | Time: {elapsed_ms:.2f}ms")
+
+                if response.status_code in [200, 201]:
+                    logger.info("Project list fetched successfully after 401 token refresh")
+                    project_list = [
+                        project["name"] for project in response.json()["data"]["content"]
+                    ]
+                    self.project_id = [
+                    project["id"] for project in response.json()["data"]["content"] if project["name"]==project_name
+                    ][0]
+                else:
+                    logger.error("Failed to fetch project list after 401 token refresh")
+                    return
+            else:
+                logger.error(f"HTTP {response.status_code} error when fetching project list")
+                return
 
         except (PoolError, MaxRetryError, NewConnectionError, ConnectionError, Timeout, RemoteDisconnected) as e:
             session_manager.handle_request_exceptions(e, "fetching project list")
@@ -68,7 +100,7 @@ class PromptManager:
             return
 
         self.headers = {
-                "Authorization": f'Bearer {os.getenv("RAGAAI_CATALYST_TOKEN")}',
+                "Authorization": f'Bearer {RagaAICatalyst.get_token()}',
                 "X-Project-Id": str(self.project_id)
             }
 
@@ -188,10 +220,36 @@ class Prompt:
             list: A list of prompt names, or empty list if error occurs.
         """
         try:
+            start_time = time.time()
             response = session_manager.make_request_with_retry("GET", url, headers=headers, timeout=timeout)
-            response.raise_for_status()
-            prompt_list = [prompt["name"] for prompt in response.json()["data"]]                        
-            return prompt_list
+            elapsed_ms = (time.time() - start_time) * 1000
+            logger.debug(f"API Call: [GET] {url} | Status: {response.status_code} | Time: {elapsed_ms:.2f}ms")
+
+            if response.status_code in [200, 201]:
+                prompt_list = [prompt["name"] for prompt in response.json()["data"]]
+                return prompt_list
+            elif response.status_code == 401:
+                logger.warning("Received 401 error during listing prompts. Attempting to refresh token.")
+                token = RagaAICatalyst.get_token(force_refresh=True)
+                new_headers = headers.copy()
+                new_headers["Authorization"] = f"Bearer {token}"
+
+                start_time = time.time()
+                response = session_manager.make_request_with_retry("GET", url, headers=new_headers, timeout=timeout)
+                elapsed_ms = (time.time() - start_time) * 1000
+                logger.debug(f"API Call: [GET] {url} (retry) | Status: {response.status_code} | Time: {elapsed_ms:.2f}ms")
+
+                if response.status_code in [200, 201]:
+                    logger.info("Prompts listed successfully after 401 token refresh")
+                    prompt_list = [prompt["name"] for prompt in response.json()["data"]]
+                    return prompt_list
+                else:
+                    logger.error("Failed to list prompts after 401 token refresh")
+                    return []
+            else:
+                logger.error(f"HTTP {response.status_code} error when listing prompts")
+                return []
+
         except (PoolError, MaxRetryError, NewConnectionError, ConnectionError, Timeout, RemoteDisconnected) as e:
             session_manager.handle_request_exceptions(e, "listing prompts")
             return []
@@ -217,10 +275,35 @@ class Prompt:
             response: The response object containing the prompt version data, or None if error occurs.
         """
         try:
-            response = session_manager.make_request_with_retry("GET", f"{base_url}/version/{prompt_name}?version={version}",
-                                    headers=headers, timeout=timeout)
-            response.raise_for_status()
-            return response
+            url = f"{base_url}/version/{prompt_name}?version={version}"
+            start_time = time.time()
+            response = session_manager.make_request_with_retry("GET", url, headers=headers, timeout=timeout)
+            elapsed_ms = (time.time() - start_time) * 1000
+            logger.debug(f"API Call: [GET] {url} | Status: {response.status_code} | Time: {elapsed_ms:.2f}ms")
+
+            if response.status_code in [200, 201]:
+                return response
+            elif response.status_code == 401:
+                logger.warning(f"Received 401 error during fetching prompt version {version} for {prompt_name}. Attempting to refresh token.")
+                token = RagaAICatalyst.get_token(force_refresh=True)
+                new_headers = headers.copy()
+                new_headers["Authorization"] = f"Bearer {token}"
+
+                start_time = time.time()
+                response = session_manager.make_request_with_retry("GET", url, headers=new_headers, timeout=timeout)
+                elapsed_ms = (time.time() - start_time) * 1000
+                logger.debug(f"API Call: [GET] {url} (retry) | Status: {response.status_code} | Time: {elapsed_ms:.2f}ms")
+
+                if response.status_code in [200, 201]:
+                    logger.info(f"Prompt version {version} for {prompt_name} fetched successfully after 401 token refresh")
+                    return response
+                else:
+                    logger.error(f"Failed to fetch prompt version {version} for {prompt_name} after 401 token refresh")
+                    return None
+            else:
+                logger.error(f"HTTP {response.status_code} error when fetching prompt version {version} for {prompt_name}")
+                return None
+
         except (PoolError, MaxRetryError, NewConnectionError, ConnectionError, Timeout, RemoteDisconnected) as e:
             session_manager.handle_request_exceptions(e, f"fetching prompt version {version} for {prompt_name}")
             return None
@@ -245,10 +328,35 @@ class Prompt:
             response: The response object containing the latest prompt version data, or None if error occurs.
         """
         try:
-            response = session_manager.make_request_with_retry("GET", f"{base_url}/version/{prompt_name}",
-                                headers=headers, timeout=timeout)
-            response.raise_for_status()
-            return response
+            url = f"{base_url}/version/{prompt_name}"
+            start_time = time.time()
+            response = session_manager.make_request_with_retry("GET", url, headers=headers, timeout=timeout)
+            elapsed_ms = (time.time() - start_time) * 1000
+            logger.debug(f"API Call: [GET] {url} | Status: {response.status_code} | Time: {elapsed_ms:.2f}ms")
+
+            if response.status_code in [200, 201]:
+                return response
+            elif response.status_code == 401:
+                logger.warning(f"Received 401 error during fetching latest prompt version for {prompt_name}. Attempting to refresh token.")
+                token = RagaAICatalyst.get_token(force_refresh=True)
+                new_headers = headers.copy()
+                new_headers["Authorization"] = f"Bearer {token}"
+
+                start_time = time.time()
+                response = session_manager.make_request_with_retry("GET", url, headers=new_headers, timeout=timeout)
+                elapsed_ms = (time.time() - start_time) * 1000
+                logger.debug(f"API Call: [GET] {url} (retry) | Status: {response.status_code} | Time: {elapsed_ms:.2f}ms")
+
+                if response.status_code in [200, 201]:
+                    logger.info(f"Latest prompt version for {prompt_name} fetched successfully after 401 token refresh")
+                    return response
+                else:
+                    logger.error(f"Failed to fetch latest prompt version for {prompt_name} after 401 token refresh")
+                    return None
+            else:
+                logger.error(f"HTTP {response.status_code} error when fetching latest prompt version for {prompt_name}")
+                return None
+
         except (PoolError, MaxRetryError, NewConnectionError, ConnectionError, Timeout, RemoteDisconnected) as e:
             session_manager.handle_request_exceptions(e, f"fetching latest prompt version for {prompt_name}")
             return None
@@ -304,7 +412,7 @@ class Prompt:
             
         if response is None:
             return None
-            
+
         try:
             prompt_text = response.json()["data"]["docs"][0]["textFields"]
             prompt_parameters = response.json()["data"]["docs"][0]["modelSpecs"]["parameters"]
@@ -329,14 +437,43 @@ class Prompt:
             dict: A dictionary mapping version names to prompt texts, or empty dict if error occurs.
         """
         try:
-            response = session_manager.make_request_with_retry("GET", f"{base_url}/{prompt_name}/version",
-                                    headers=headers, timeout=timeout)
-            response.raise_for_status()
-            version_names = [version["name"] for version in response.json()["data"]]
-            prompt_versions = {}
-            for version in version_names:
-                prompt_versions[version] = self._get_prompt_by_version(base_url, headers, timeout, prompt_name, version)
-            return prompt_versions
+            url = f"{base_url}/{prompt_name}/version"
+            start_time = time.time()
+            response = session_manager.make_request_with_retry("GET", url, headers=headers, timeout=timeout)
+            elapsed_ms = (time.time() - start_time) * 1000
+            logger.debug(f"API Call: [GET] {url} | Status: {response.status_code} | Time: {elapsed_ms:.2f}ms")
+
+            if response.status_code in [200, 201]:
+                version_names = [version["name"] for version in response.json()["data"]]
+                prompt_versions = {}
+                for version in version_names:
+                    prompt_versions[version] = self._get_prompt_by_version(base_url, headers, timeout, prompt_name, version)
+                return prompt_versions
+            elif response.status_code == 401:
+                logger.warning(f"Received 401 error during listing prompt versions for {prompt_name}. Attempting to refresh token.")
+                token = RagaAICatalyst.get_token(force_refresh=True)
+                new_headers = headers.copy()
+                new_headers["Authorization"] = f"Bearer {token}"
+
+                start_time = time.time()
+                response = session_manager.make_request_with_retry("GET", url, headers=new_headers, timeout=timeout)
+                elapsed_ms = (time.time() - start_time) * 1000
+                logger.debug(f"API Call: [GET] {url} (retry) | Status: {response.status_code} | Time: {elapsed_ms:.2f}ms")
+
+                if response.status_code in [200, 201]:
+                    logger.info(f"Prompt versions for {prompt_name} listed successfully after 401 token refresh")
+                    version_names = [version["name"] for version in response.json()["data"]]
+                    prompt_versions = {}
+                    for version in version_names:
+                        prompt_versions[version] = self._get_prompt_by_version(base_url, new_headers, timeout, prompt_name, version)
+                    return prompt_versions
+                else:
+                    logger.error(f"Failed to list prompt versions for {prompt_name} after 401 token refresh")
+                    return {}
+            else:
+                logger.error(f"HTTP {response.status_code} error when listing prompt versions for {prompt_name}")
+                return {}
+
         except (PoolError, MaxRetryError, NewConnectionError, ConnectionError, Timeout, RemoteDisconnected) as e:
             session_manager.handle_request_exceptions(e, f"listing prompt versions for {prompt_name}")
             return {}
@@ -361,7 +498,7 @@ class PromptObject:
         self.text = text
         self.parameters = parameters
         self.model = model
-    
+
     def _extract_variable_from_content(self, content):
         """
         Extract variables from the content.
