@@ -279,7 +279,7 @@ def test_exclude_vital_columns():
     """
     Test that verifies vital columns are excluded while masking.
     This test checks that fields like model_name, cost, latency, span_id, trace_id, etc.
-    are not present in the exported trace data.
+    are not present in the exported trace data or redacted with <REDACTED TEXT>.
     """
     # Load the trace file
     trace_file_path = os.path.join(
@@ -300,7 +300,24 @@ def test_exclude_vital_columns():
         "trace_id"
     ]
     
-    # Check that each vital column is not present in the trace data
+    def check_nested_values(data, column_name, path=""):
+        """Recursively search for the column in nested data and check if it's redacted"""
+        if isinstance(data, dict):
+            for key, value in data.items():
+                current_path = f"{path}.{key}" if path else key
+                if key == column_name and value == "<REDACTED TEXT>":
+                    return True, current_path
+                found, found_path = check_nested_values(value, column_name, current_path)
+                if found:
+                    return True, found_path
+        elif isinstance(data, list):
+            for i, item in enumerate(data):
+                found, found_path = check_nested_values(item, column_name, f"{path}[{i}]")
+                if found:
+                    return True, found_path
+        return False, ""
+    
+    # Check that each vital column is not present in the top level of trace data
     for column in vital_columns:
         assert column not in trace_data, f"Expected {column} to be excluded from top-level trace data"
     
@@ -345,7 +362,6 @@ def test_span_kind_not_null():
     assert len(invalid_spans) == 0, f"Found {len(invalid_spans)} spans with null or missing 'kind' field"
     print(f"  - All {len(spans)} spans have valid 'kind' field")
 
-        assert column not in trace_data, f"Expected {column} to be excluded from trace data"
 @pytest.fixture(scope="session", autouse=True)
 def setup_traces():
     """
