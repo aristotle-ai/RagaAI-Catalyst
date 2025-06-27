@@ -1,5 +1,5 @@
 import os
-from .tracers.agentic_tracing.upload.session_manager import session_manager
+from ragaai_catalyst.session_manager import session_manager
 import json
 import re
 from .ragaai_catalyst import RagaAICatalyst
@@ -100,7 +100,7 @@ class PromptManager:
             return
 
         self.headers = {
-                "Authorization": f'Bearer {RagaAICatalyst.get_token()}',
+                "Authorization": f'Bearer {os.getenv("RAGAAI_CATALYST_TOKEN")}',
                 "X-Project-Id": str(self.project_id)
             }
 
