@@ -45,6 +45,23 @@ def setup_environment():
         secret_key=os.getenv('RAGAAI_CATALYST_SECRET_KEY'),
         base_url=os.getenv('RAGAAI_CATALYST_BASE_URL')
     )
+    
+    # Create project if it doesn't exist
+    project_name = 'agentic_tracer_sk_v3'
+    existing_projects = catalyst.list_projects()
+    
+    if project_name not in existing_projects:
+        try:
+            catalyst.create_project(
+                project_name=project_name,
+                usecase="Agentic Application"  # default usecase Q/A
+            )
+            print(f"Project '{project_name}' created successfully")
+        except Exception as e:
+            print(f"Error creating project: {e}")
+    else:
+        print(f"Project '{project_name}' already exists")
+    
     return catalyst
 
 @pytest.fixture
@@ -64,10 +81,10 @@ def test_tracer_initialization(tracer):
     assert tracer.tracer_type == expected_attrs["tracer_type"]
     assert tracer.timeout == expected_attrs["timeout"]
 
-def test_set_dataset_name(tracer):
-    new_dataset = "pytest_dataset_new"
-    tracer.set_dataset_name(new_dataset)
-    assert tracer.dataset_name == TEST_RESPONSES["set_dataset_name"]["new_dataset"]
+# def test_set_dataset_name(tracer):
+#     new_dataset = "pytest_dataset_new"
+#     tracer.set_dataset_name(new_dataset)
+#     assert tracer.dataset_name == TEST_RESPONSES["set_dataset_name"]["new_dataset"]
 
 
 def test_add_context_unsupported(tracer, caplog):

@@ -16,6 +16,7 @@ MODEL_CONFIGS = [
     # {"provider": "gemini", "model": "gemini-1.5-flash"}  # Only one Gemini model
 ]
 
+
 # Common metrics to test
 CORE_METRICS = [
     'Hallucination',
@@ -29,6 +30,7 @@ CHAT_METRICS = [
     'User Chat Quality'
 ]
 
+
 @pytest.fixture
 def base_url():
     return os.getenv("RAGAAI_CATALYST_BASE_URL")
@@ -40,6 +42,7 @@ def access_keys():
         "secret_key": os.getenv("RAGAAI_CATALYST_SECRET_KEY")
     }
 
+
 @pytest.fixture
 def evaluation(base_url, access_keys):
     """Create evaluation instance with specific project and dataset"""
@@ -50,7 +53,7 @@ def evaluation(base_url, access_keys):
     )
     return Evaluation(
         project_name="bug_test2", 
-        dataset_name="legal_research_rag"
+        dataset_name="crewai"
     )
 
 @pytest.fixture
@@ -63,14 +66,14 @@ def chat_evaluation(base_url, access_keys):
     )
     return Evaluation(
         project_name="bug_test2", 
-        dataset_name="legal_research_rag"
+        dataset_name="crewai"
     )
 
 # Basic initialization tests
 def test_evaluation_initialization(evaluation):
     """Test if evaluation is initialized correctly"""
     assert evaluation.project_name == "bug_test2"
-    assert evaluation.dataset_name == "legal_research_rag"
+    assert evaluation.dataset_name == "crewai"
 import logging
 
 def test_project_does_not_exist(caplog):

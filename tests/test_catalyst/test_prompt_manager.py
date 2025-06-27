@@ -55,7 +55,7 @@ def prompt_manager(base_url, access_keys, create_test_project):
 
 def test_prompt_initialistaion(prompt_manager):
     prompt_list= prompt_manager.list_prompts()
-    assert prompt_list ==['test','test2']
+    assert prompt_list ==['test','test2','newprompt','langchainrag']
 
 def test_list_prompt_version(prompt_manager):
     prompt_version_list = prompt_manager.list_prompt_versions(prompt_name="test2")

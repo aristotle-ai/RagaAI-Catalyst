@@ -23,13 +23,42 @@ def evaluation():
         project_name="test_dataset", 
         dataset_name="test"
     )
+@pytest.fixture(scope="module")
+def catalyst():
+    base_url = os.getenv("RAGAAI_CATALYST_BASE_URL")
+    access_key = os.getenv("RAGAAI_CATALYST_ACCESS_KEY")
+    secret_key = os.getenv("RAGAAI_CATALYST_SECRET_KEY")
+    
+    os.environ["RAGAAI_CATALYST_BASE_URL"] = base_url
+    catalyst = RagaAICatalyst(
+        access_key=access_key,
+        secret_key=secret_key
+    )
+    
+    # Create project if it doesn't exist
+    project_name = "test_dataset"
+    existing_projects = catalyst.list_projects()
+    
+    if project_name not in existing_projects:
+        try:
+            catalyst.create_project(
+                project_name=project_name,
+                usecase="Agentic Application"  # default usecase Q/A
+            )
+            print(f"Project '{project_name}' created successfully")
+        except Exception as e:
+            print(f"Error creating project: {e}")
+    else:
+        print(f"Project '{project_name}' already exists")
+    
+    return catalyst
 
 @pytest.fixture
 def valid_metrics(evaluation):
     # Define the metrics to be added
     metrics = [{
         "name": "Hallucination",
-        "config": {"threshold": 0.0},
+        "config": {"threshold": {"gte": 0.0}},  # Changed from direct float to dictionary with operator
         "column_name": "Hallucination3",
         "schema_mapping": {"input": "test_input"}
     }]
@@ -75,7 +104,7 @@ def test_add_metrics_invalid_metric_name(evaluation, caplog):
     
     invalid_metrics = [{
         "name": "InvalidMetricName",  # Use an intentionally invalid name
-        "config": {"threshold": 0.8},
+        "config": {"threshold": {"gte": 0.8}},  # Changed from direct float to dictionary with operator
         "column_name": "invalid_metric_col",
         "schema_mapping": {"input": "test_input", "Prompt": "prompt_col", "Response": "response_col", "Context": "context_col"}
     }]
