@@ -3,22 +3,16 @@ trace_uploader.py - A dedicated process for handling trace uploads
 """
 
 import os
-import sys
 import json
 import time
-import signal
 import logging
 import argparse
 import tempfile
-from pathlib import Path
-import multiprocessing
-import queue
 from datetime import datetime
 import atexit
-import glob
 from logging.handlers import RotatingFileHandler
 import concurrent.futures
-from typing import Dict, Any, Optional
+from typing import Dict, Any
 import threading
 import uuid
 
@@ -50,7 +44,7 @@ try:
     from ragaai_catalyst.tracers.agentic_tracing.upload.upload_code import upload_code
     # from ragaai_catalyst.tracers.agentic_tracing.upload.upload_trace_metric import upload_trace_metric
     from ragaai_catalyst.tracers.agentic_tracing.utils.create_dataset_schema import create_dataset_schema_with_trace
-    from ragaai_catalyst.tracers.agentic_tracing.upload.session_manager import session_manager
+    from ragaai_catalyst.session_manager import session_manager
     from ragaai_catalyst import RagaAICatalyst
     IMPORTS_AVAILABLE = True
 except ImportError:

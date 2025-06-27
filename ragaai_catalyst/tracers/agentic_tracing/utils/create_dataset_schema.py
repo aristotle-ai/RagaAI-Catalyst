@@ -9,7 +9,7 @@ from requests.exceptions import ConnectionError, Timeout, RequestException
 from http.client import RemoteDisconnected
 
 from ragaai_catalyst import RagaAICatalyst
-from ragaai_catalyst.tracers.agentic_tracing.upload.session_manager import session_manager
+from ragaai_catalyst.session_manager import session_manager
 
 IGNORED_KEYS = {"log_source", "recorded_on"}
 logger = logging.getLogger(__name__)
