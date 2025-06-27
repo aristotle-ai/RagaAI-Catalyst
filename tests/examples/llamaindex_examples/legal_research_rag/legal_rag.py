@@ -25,6 +25,14 @@ catalyst = RagaAICatalyst(
     secret_key=os.getenv('RAGAAI_CATALYST_SECRET_KEY'), 
     base_url=os.getenv('RAGAAI_CATALYST_BASE_URL')
 )
+project_name = 'llamaindex'
+try:
+    project = catalyst.create_project(
+        project_name=project_name,
+        usecase="Agentic Application" #default usecase Q/A
+    )
+except:
+    print("Project Already exists")
 # Initialize tracer
 tracer = Tracer(
     project_name='prompt_metric_dataset',#os.getenv("RAGAAI_PROJECT_NAME"),

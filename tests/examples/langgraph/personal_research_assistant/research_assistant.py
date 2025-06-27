@@ -26,7 +26,14 @@ def initialize_catalyst():
         secret_key=os.getenv('RAGAAI_CATALYST_SECRET_KEY'), 
         base_url=os.getenv('RAGAAI_CATALYST_BASE_URL')
     )
-    
+    project_name = 'langgraph'
+    try:
+        project = catalyst.create_project(
+            project_name=project_name,
+            usecase="Agentic Application" #default usecase Q/A
+        )
+    except:
+        print("Project Already exists")
     tracer = Tracer(
         project_name= 'testing_v', #os.getenv("RAGAAI_PROJECT_NAME"),
         dataset_name= 'testing_v_dataset', #os.getenv("RAGAAI_DATASET_NAME"),
