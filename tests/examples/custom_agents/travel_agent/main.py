@@ -120,6 +120,5 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
 
-    with tracer:
-        travel_agent(model_name=args.model, provider=args.provider)
+    travel_agent(model_name=args.model, provider=args.provider)
     

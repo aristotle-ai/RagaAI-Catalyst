@@ -163,5 +163,4 @@ if __name__ == "__main__":
     parser.add_argument("--model_type", type=str, default="openai", help="The model type to use (e.g., openai)")
     args = parser.parse_args()
 
-    with tracer:
-        main(args.model_type)
+    main(args.model_type)

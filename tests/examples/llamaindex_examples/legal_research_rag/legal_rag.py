@@ -112,5 +112,4 @@ if __name__ == "__main__":
     parser.add_argument("--info", type=str, default="testing-legal-rag", help="testing description")
     args = parser.parse_args()
 
-    with tracer:
-        main(args.info)
+    main(args.info)
