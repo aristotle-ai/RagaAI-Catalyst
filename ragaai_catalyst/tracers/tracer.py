@@ -21,6 +21,8 @@ from ragaai_catalyst import RagaAICatalyst
 from ragaai_catalyst.tracers.agentic_tracing import AgenticTracing
 from ragaai_catalyst.tracers.exporters.ragaai_trace_exporter import RAGATraceExporter
 from ragaai_catalyst.tracers.agentic_tracing.utils.file_name_tracker import TrackName
+from ragaai_catalyst.tracers.processors.dataset_span_processor import DatasetSpanProcessor
+from opentelemetry import context
 
 logger = logging.getLogger(__name__)
 logging_level = (
@@ -481,12 +483,26 @@ class Tracer(AgenticTracing):
 
     def set_dataset_name(self, dataset_name):
         """
-        This method updates the dataset_name attribute of the dynamic exporter.
+        This method sets the dataset name for the current request context using OpenTelemetry context variables.
+        This ensures proper isolation between concurrent requests with different dataset names.
         Args:
-            dataset_name (str): The new dataset name to set
+            dataset_name (str): The new dataset name to set for current request context
         """
+        # Set the dataset name in the current request context (thread-safe)
+        ctx = context.set_value("ragaai.dataset_name", dataset_name)
+        token = context.attach(ctx)
+        logger.debug(f"Set dataset context variable to '{dataset_name}' for current request")
+        
+        # Still update the dynamic exporter for backward compatibility with non-context-aware components
         self.dynamic_exporter.dataset_name = dataset_name
         logger.debug(f"Updated dynamic exporter's dataset_name to {dataset_name}")
+        
+        # Update the tracer's own dataset_name (fallback)
+        self.dataset_name = dataset_name
+        
+        # Note: We no longer update the global dataset_processor to avoid race conditions
+        # The processor will now read from context variables in on_start()
+        logger.debug(f"Dataset name set via context variables for request-level isolation")
 
     def _improve_metadata(self, metadata, tracer_type):
         if metadata is None:
@@ -593,6 +609,7 @@ class Tracer(AgenticTracing):
         from opentelemetry.sdk import trace as trace_sdk
         from opentelemetry.sdk.trace.export import SimpleSpanProcessor
         from ragaai_catalyst.tracers.exporters.dynamic_trace_exporter import DynamicTraceExporter
+        from ragaai_catalyst.tracers.processors.dataset_span_processor import DatasetSpanProcessor
         
         # Get the code_files
         self.file_tracker.trace_main_file()
@@ -616,8 +633,16 @@ class Tracer(AgenticTracing):
             external_id=self.external_id
         )
         
+        # Create dataset span processor to automatically set dataset attributes
+        self.dataset_processor = DatasetSpanProcessor(self.dataset_name)
+        
         # Set up tracer provider
         tracer_provider = trace_sdk.TracerProvider()
+        
+        # Add dataset processor first to set attributes on span start
+        tracer_provider.add_span_processor(self.dataset_processor)
+        
+        # Add export processor
         tracer_provider.add_span_processor(SimpleSpanProcessor(self.dynamic_exporter))
         
         # Instrument all specified instrumentors
@@ -632,6 +657,8 @@ class Tracer(AgenticTracing):
             # Instrument with the provided tracer provider and arguments
             instrumentor.instrument(tracer_provider=tracer_provider, *args)
             
+        logger.info(f"Agentic tracer setup complete with automatic dataset routing - dataset: {self.dataset_name}")
+
     def update_file_list(self):
         """
         Update the file list in the dynamic exporter with the latest tracked files.
