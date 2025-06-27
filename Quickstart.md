@@ -1,4 +1,4 @@
-# Quickstart | RagaAI Catalyst
+# Quickstart
 
 ## **1. Install RagaAI Catalyst**
 
@@ -17,6 +17,8 @@ pip install ragaai-catalyst
 2. Navigate to **Profile Settings** → **Authentication**.
 3. Click **Generate New Key** to obtain your **Access Key** and **Secret Key**.
 
+![How to generate authentication keys](docs/img/autheticate.gif)
+
 ### **Initialize the SDK**
 
 To begin using Catalyst, initialize it as follows:
@@ -30,7 +32,6 @@ catalyst = RagaAICatalyst(
     base_url="BASE_URL"  
 )
 ```
-
 
 ## **3. Create Your First Project**
 
@@ -46,6 +47,8 @@ project = catalyst.create_project(
 # List available use cases
 print(catalyst.project_use_cases())
 ```
+![Projects](docs/img/create_project.gif)
+
 
 ### **Add a Dataset**
 Initialize the dataset manager and create a dataset from a CSV file, DataFrame, or JSONl file.
@@ -71,7 +74,7 @@ dataset_manager.create_from_csv(
 # View dataset schema
 print(dataset_manager.get_schema_mapping())
 ```
-
+![Dataset](docs/img/dataset.gif)
 
 ## **4. Trace Your Application**
 
@@ -144,7 +147,7 @@ tracer.stop()
 # Verify data capture
 print(tracer.get_upload_status())
 ```
-
+![Tracing](docs/img/last_main.png)
 
 
 ## **5. Evaluation Framework**
@@ -189,12 +192,4 @@ evaluation.add_metrics(
 print(f"Status: {evaluation.get_status()}")
 print(f"Results: {evaluation.get_results()}")
 ```
-
-
-
-## **Next Steps**
-- **Explore the Dashboard:** Visualize metrics and insights in the RagaAI Web UI.
-
-
-
-**Version:** 1.0.0 | **Last Updated:** Mar 2025
+![Evaluation](docs/img/evaluation.gif)
