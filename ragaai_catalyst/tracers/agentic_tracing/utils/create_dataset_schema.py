@@ -1,25 +1,36 @@
 import os
 import json
-import re
+import requests
 import logging
 import time
+from typing import Optional
 from urllib3.exceptions import PoolError, MaxRetryError, NewConnectionError
 from requests.exceptions import ConnectionError, Timeout, RequestException
 from http.client import RemoteDisconnected
 
 from ragaai_catalyst import RagaAICatalyst
-from ragaai_catalyst.tracers.agentic_tracing.upload.session_manager import session_manager
+from ragaai_catalyst.session_manager import session_manager
 
+IGNORED_KEYS = {"log_source", "recorded_on"}
 logger = logging.getLogger(__name__)
 
-def create_dataset_schema_with_trace(project_name, dataset_name, base_url=None, user_details=None, timeout=120):
-    SCHEMA_MAPPING = {}
-    metadata = user_details.get("trace_user_detail").get("metadata")
-    if metadata and isinstance(metadata, dict):
+def create_dataset_schema_with_trace(
+        project_name: str,
+        dataset_name: str,
+        base_url: Optional[str] = None,
+        user_details: Optional[dict] = None,
+        timeout: int = 120) -> requests.Response:
+    schema_mapping = {}
+
+    metadata = (
+        user_details.get("trace_user_detail", {}).get("metadata", {})
+        if user_details else {}
+    )
+    if isinstance(metadata, dict):
         for key, value in metadata.items():
-            if key in ["log_source", "recorded_on"]:
+            if key in IGNORED_KEYS:
                 continue
-            SCHEMA_MAPPING[key] = {"columnType": "metadata"}
+            schema_mapping[key] = {"columnType": "metadata"}
 
     headers = {
         "Content-Type": "application/json",
@@ -27,11 +38,11 @@ def create_dataset_schema_with_trace(project_name, dataset_name, base_url=None, 
         "X-Project-Name": project_name,
     }
 
-    if SCHEMA_MAPPING:
+    if schema_mapping:
         payload = json.dumps({
             "datasetName": dataset_name,
             "traceFolderUrl": None,
-            "schemaMapping": SCHEMA_MAPPING
+            "schemaMapping": schema_mapping
         })
     else:
         payload = json.dumps({

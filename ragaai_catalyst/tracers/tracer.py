@@ -617,13 +617,13 @@ class Tracer(AgenticTracing):
 
         # Create a dynamic exporter that allows property updates
         self.dynamic_exporter = DynamicTraceExporter(
+            project_name=self.project_name,
+            dataset_name=self.dataset_name,
+            base_url=self.base_url,
             tracer_type=self.tracer_type,
             files_to_zip=list_of_unique_files,
-            project_name=self.project_name,
             project_id=self.project_id,
-            dataset_name=self.dataset_name,
             user_details=self.user_details,
-            base_url=self.base_url,
             custom_model_cost=self.model_custom_cost,
             timeout = self.timeout,
             post_processor= self.post_processor,

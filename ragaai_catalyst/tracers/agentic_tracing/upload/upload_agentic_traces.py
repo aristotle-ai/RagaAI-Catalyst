@@ -7,7 +7,7 @@ from urllib.parse import urlparse, urlunparse
 from urllib3.exceptions import PoolError, MaxRetryError, NewConnectionError
 from requests.exceptions import ConnectionError, Timeout, RequestException
 from http.client import RemoteDisconnected
-from .session_manager import session_manager
+from ragaai_catalyst.session_manager import session_manager
 
 logger = logging.getLogger(__name__)
 
