@@ -8,4 +8,4 @@ langchain_openai
 PyPDF2
 haystack
 haystack-ai
-llama-index openai
+llama-index== 0.12.44
