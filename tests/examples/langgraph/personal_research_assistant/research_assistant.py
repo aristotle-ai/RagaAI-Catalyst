@@ -28,7 +28,7 @@ def initialize_catalyst():
         base_url=os.getenv('RAGAAI_CATALYST_BASE_URL')
     )
     
-    project_name = 'bug_test2'
+    project_name = 'langgraph'
     try:
         project = catalyst.create_project(
             project_name=project_name,

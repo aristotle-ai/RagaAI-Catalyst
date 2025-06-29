@@ -31,6 +31,15 @@ class TestRagaAICatalystRealAPI(unittest.TestCase):
         
         # Use existing project
         cls.project_name = "bug_test2"
+        try:
+            project = cls.client.create_project(
+                project_name=cls.project_name,
+                usecase="Agentic Application"  # Default usecase Q/A
+            )
+            logger.debug(f"Created project: {cls.project_name}")
+        except Exception as e:
+            logger.debug(f"Project {cls.project_name} already exists: {str(e)}")
+
 
     def test_1_initialization(self):
         """Test client initialization and environment setup"""

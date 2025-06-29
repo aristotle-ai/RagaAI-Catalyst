@@ -2,7 +2,7 @@ import logging
 import os
 import pytest
 import requests
-from ragaai_catalyst import Evaluation, RagaAICatalyst
+from ragaai_catalyst import Evaluation, RagaAICatalyst, Dataset  # Added Dataset import
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -19,9 +19,65 @@ def evaluation():
         secret_key=secret_key
     )
     
+    # Create project if it doesn't exist
+    project_name = "test_dataset"
+    existing_projects = catalyst.list_projects()
+    
+    if project_name not in existing_projects:
+        try:
+            catalyst.create_project(
+                project_name=project_name,
+                usecase="Q/A"  # default usecase Q/A
+            )
+            print(f"Project '{project_name}' created successfully")
+        except Exception as e:
+            print(f"Error creating project: {e}")
+    else:
+        print(f"Project '{project_name}' already exists")
+    
+    # Initialize Dataset management for the project
+    dataset_manager = Dataset(project_name=project_name)
+    
+    # List existing datasets
+    existing_datasets = dataset_manager.list_datasets()
+    print("Existing Datasets:", existing_datasets)
+    
+    # Get schema mappings available
+    schema_elements = dataset_manager.get_schema_mapping()
+    print("Available schema elements:", schema_elements)
+    
+    # Create test dataset if it doesn't exist
+    dataset_name = "test"
+    
+    if dataset_name not in existing_datasets:
+        try:
+            # Path to the test CSV file
+            csv_path = os.path.join(os.path.dirname(__file__), os.path.join("test_data", "util_synthetic_data_valid.csv"))
+            
+            # Schema mapping for the CSV - map CSV columns to schema elements
+            schema_mapping = {
+                'prompt': 'prompt',                   # CSV column 'prompt' maps to schema element 'prompt'
+                'response': 'response',               # CSV column 'response' maps to schema element 'response'
+                'expected response': 'expected_response',  # CSV column 'expected response' maps to schema element 'expected_response'
+                'context': 'context'                  # CSV column 'context' maps to schema element 'context'
+            }
+            
+            # Create the dataset from CSV
+            dataset_manager.create_from_csv(
+                csv_path=csv_path,
+                dataset_name=dataset_name,
+                schema_mapping=schema_mapping
+            )
+            print(f"Dataset '{dataset_name}' created successfully")
+        except Exception as e:
+            print(f"Error creating dataset: {e}")
+    else:
+        print(f"Dataset '{dataset_name}' already exists")
+    
+    # Return the evaluation instance with the project and dataset
     return Evaluation(
-        project_name="test_dataset", 
-        dataset_name="test"
+        project_name=project_name, 
+        dataset_name=dataset_name
     )
 @pytest.fixture(scope="module")
 def catalyst():
@@ -43,7 +99,7 @@ def catalyst():
         try:
             catalyst.create_project(
                 project_name=project_name,
-                usecase="Agentic Application"  # default usecase Q/A
+                usecase="Q/A"  # default usecase Q/A
             )
             print(f"Project '{project_name}' created successfully")
         except Exception as e:

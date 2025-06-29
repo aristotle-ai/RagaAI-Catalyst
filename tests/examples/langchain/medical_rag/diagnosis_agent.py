@@ -35,7 +35,7 @@ try:
 except:
     print("Project Already exists")
 tracer = Tracer(
-    project_name= 'bug_test2', #os.getenv("RAGAAI_PROJECT_NAME"),
+    project_name= project_name, #os.getenv("RAGAAI_PROJECT_NAME"),
     dataset_name= 'langchain', #os.getenv("RAGAAI_DATASET_NAME"),
     tracer_type="agentic/langchain",
 )

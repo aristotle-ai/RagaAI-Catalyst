@@ -52,8 +52,8 @@ def evaluation(base_url, access_keys):
         secret_key=access_keys["secret_key"]
     )
     return Evaluation(
-        project_name="bug_test2", 
-        dataset_name="crewai"
+        project_name="haystack", 
+        dataset_name="pytest_dataset"
     )
 
 @pytest.fixture
@@ -65,15 +65,15 @@ def chat_evaluation(base_url, access_keys):
         secret_key=access_keys["secret_key"]
     )
     return Evaluation(
-        project_name="bug_test2", 
-        dataset_name="crewai"
+        project_name="haystack", 
+        dataset_name="pytest_dataset"
     )
 
 # Basic initialization tests
 def test_evaluation_initialization(evaluation):
     """Test if evaluation is initialized correctly"""
-    assert evaluation.project_name == "bug_test2"
-    assert evaluation.dataset_name == "crewai"
+    assert evaluation.project_name == "haystack"
+    assert evaluation.dataset_name == "pytest_dataset"
 import logging
 
 def test_project_does_not_exist(caplog):

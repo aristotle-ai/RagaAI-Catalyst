@@ -35,7 +35,7 @@ except:
     print("Project Already exists")
 # Initialize tracer
 tracer = Tracer(
-    project_name='prompt_metric_dataset',#os.getenv("RAGAAI_PROJECT_NAME"),
+    project_name=project_name,#os.getenv("RAGAAI_PROJECT_NAME"),
     dataset_name='pytest_dataset',#os.getenv("RAGAAI_DATASET_NAME"),
     tracer_type="agentic/llamaindex",
 )
