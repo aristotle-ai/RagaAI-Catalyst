@@ -19,6 +19,7 @@ from ragaai_catalyst import RagaAICatalyst, init_tracing
 from ragaai_catalyst.tracers import Tracer
 
 # Initialize RagaAI Catalyst
+# Initialize RagaAI Catalyst
 def initialize_catalyst():
     """Initialize RagaAI Catalyst using environment credentials."""
     catalyst = RagaAICatalyst(
@@ -27,9 +28,19 @@ def initialize_catalyst():
         base_url=os.getenv('RAGAAI_CATALYST_BASE_URL')
     )
     
+    project_name = 'langgraph'
+    try:
+        project = catalyst.create_project(
+            project_name=project_name,
+            usecase="Agentic Application"  # default usecase Q/A
+        )
+        print(f"Project '{project_name}' created successfully")
+    except:
+        print(f"Project '{project_name}' already exists")
+    
     tracer = Tracer(
-        project_name= 'testing_v', #os.getenv("RAGAAI_PROJECT_NAME"),
-        dataset_name= 'testing_v_dataset', #os.getenv("RAGAAI_DATASET_NAME"),
+        project_name=project_name,
+        dataset_name='langgraph',
         tracer_type="agentic/langgraph",
     )
     

@@ -19,12 +19,23 @@ catalyst = RagaAICatalyst(
     secret_key=os.getenv('RAGAAI_CATALYST_SECRET_KEY'), 
     base_url=os.getenv('RAGAAI_CATALYST_BASE_URL')
 )
+project_name = 'crewai'
+try:
+    project = catalyst.create_project(
+        project_name=project_name,
+        usecase="Agentic Application" #default usecase Q/A
+    )
+except:
+    print("Project Already exists")
+
 
 tracer = Tracer(
-    project_name='prompt_metric_dataset',#os.getenv("RAGAAI_PROJECT_NAME"),
+    project_name=project_name,#os.getenv("RAGAAI_PROJECT_NAME"),
     dataset_name='pytest_dataset',#os.getenv("RAGAAI_DATASET_NAME"),
     tracer_type="agentic/crewai",
 )
+
+
 init_tracing(catalyst=catalyst, tracer=tracer)
 
 @tool

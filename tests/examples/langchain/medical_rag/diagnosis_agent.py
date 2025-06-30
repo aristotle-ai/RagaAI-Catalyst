@@ -26,9 +26,17 @@ catalyst = RagaAICatalyst(
     secret_key=os.getenv('RAGAAI_CATALYST_SECRET_KEY'), 
     base_url=os.getenv('RAGAAI_CATALYST_BASE_URL')
 )
+project_name = 'langchain'
+try:
+    project = catalyst.create_project(
+        project_name=project_name,
+        usecase="Agentic Application" #default usecase Q/A
+    )
+except:
+    print("Project Already exists")
 tracer = Tracer(
-    project_name= 'testing_v', #os.getenv("RAGAAI_PROJECT_NAME"),
-    dataset_name= 'testing_v_dataset', #os.getenv("RAGAAI_DATASET_NAME"),
+    project_name= project_name, #os.getenv("RAGAAI_PROJECT_NAME"),
+    dataset_name= 'langchain', #os.getenv("RAGAAI_DATASET_NAME"),
     tracer_type="agentic/langchain",
 )
 
@@ -155,5 +163,4 @@ if __name__ == "__main__":
     parser.add_argument("--model_type", type=str, default="openai", help="The model type to use (e.g., openai)")
     args = parser.parse_args()
 
-    with tracer:
-        main(args.model_type)
+    main(args.model_type)
