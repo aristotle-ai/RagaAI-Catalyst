@@ -9,3 +9,6 @@ PyPDF2
 haystack
 haystack-ai
 llama-index== 0.12.44
+arxiv
+smolagents
+duckduckgo_search
