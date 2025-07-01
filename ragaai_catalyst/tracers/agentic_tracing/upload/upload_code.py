@@ -8,8 +8,6 @@ from urllib3.exceptions import PoolError, MaxRetryError, NewConnectionError
 from requests.exceptions import ConnectionError, Timeout, RequestException
 from http.client import RemoteDisconnected
 
-import requests
-
 from ragaai_catalyst.ragaai_catalyst import RagaAICatalyst
 from .session_manager import session_manager
 
@@ -106,7 +104,7 @@ def _fetch_dataset_code_hashes(project_name, dataset_name, base_url=None, timeou
         session_manager.handle_request_exceptions(e, "fetching dataset code hashes")
         return None
     except RequestException as e:
-        logger.error(f"Failed to list datasets: {e}")
+        logger.error(f"Failed to fetch dataset code hashes: {e}")
         return None
 
 
@@ -142,7 +140,7 @@ def _fetch_presigned_url(project_name, dataset_name, base_url=None, timeout=120)
         start_time = time.time()
         # Changed to POST from GET
         endpoint = f"{url_base}/v1/llm/presigned-url"
-        response = requests.request(
+        response = session_manager.make_request_with_retry(
             "POST", endpoint, headers=headers, data=payload, timeout=timeout
         )
         elapsed_ms = (time.time() - start_time) * 1000
@@ -150,20 +148,20 @@ def _fetch_presigned_url(project_name, dataset_name, base_url=None, timeout=120)
             f"API Call: [POST] {endpoint} | Status: {response.status_code} | Time: {elapsed_ms:.2f}ms"
         )
 
-        if response.status_code == 200:
+        if response.status_code in [200, 201]:
             presigned_url = response.json()["data"]["presignedUrls"][0]
             presigned_url = update_presigned_url(presigned_url, url_base)
             return presigned_url
         else:
             # If POST fails, try GET
-            response = requests.request(
+            response = session_manager.make_request_with_retry(
                 "POST", endpoint, headers=headers, data=payload, timeout=timeout
             )
             elapsed_ms = (time.time() - start_time) * 1000
             logger.debug(
                 f"API Call: [POST] {endpoint} | Status: {response.status_code} | Time: {elapsed_ms:.2f}ms"
             )
-            if response.status_code == 200:
+            if response.status_code in [200, 201]:
                 presigned_url = response.json()["data"]["presignedUrls"][0]
                 presigned_url = update_presigned_url(presigned_url, url_base)
                 return presigned_url
@@ -175,7 +173,7 @@ def _fetch_presigned_url(project_name, dataset_name, base_url=None, timeout=120)
                     "Content-Type": "application/json",
                     "X-Project-Name": project_name,
                 }
-                response = requests.request(
+                response = session_manager.make_request_with_retry(
                     "POST", endpoint, headers=headers, data=payload, timeout=timeout
                 )
                 elapsed_ms = (time.time() - start_time) * 1000
@@ -188,15 +186,18 @@ def _fetch_presigned_url(project_name, dataset_name, base_url=None, timeout=120)
                     return presigned_url
                 else:
                     logger.error(
-                        f"Failed to fetch code hashes: {response.json()['message']}"
+                        f"Failed to fetch presigned URL for code upload after 401: {response.json()['message']}"
                     )
             else:
                 logger.error(
-                    f"Failed to fetch code hashes: {response.json()['message']}"
+                    f"Failed to fetch presigned URL for code upload: {response.json()['message']}"
                 )
                 return None
-    except requests.exceptions.RequestException as e:
-        logger.error(f"Failed to list datasets: {e}")
+    except (PoolError, MaxRetryError, NewConnectionError, ConnectionError, Timeout, RemoteDisconnected) as e:
+        session_manager.handle_request_exceptions(e, "fetching presigned URL for code upload")
+        return None
+    except RequestException as e:
+        logger.error(f"Failed to fetch presigned URL for code upload: {e}")
         return None
 
 

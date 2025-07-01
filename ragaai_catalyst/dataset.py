@@ -733,3 +733,61 @@ class Dataset:
                     os.remove(tmp_csv_path)
                 except Exception as e:
                     logger.error(f"Error removing temporary CSV file: {e}")
+    
+    def delete_dataset(self, dataset_name):
+        try:
+            def make_request():
+                headers = {
+                    'Content-Type': 'application/json',
+                    "Authorization": f"Bearer {os.getenv('RAGAAI_CATALYST_TOKEN')}",
+                    "X-Project-Id": str(self.project_id),
+                }
+                json_data = {"size": 99999, "page": "0", "projectId": str(self.project_id), "search": ""}
+                try:
+                    response = requests.post(
+                        f"{Dataset.BASE_URL}/v2/llm/dataset",
+                        headers=headers,
+                        json=json_data,
+                        timeout=Dataset.TIMEOUT,
+                    )
+                    response.raise_for_status()
+                    return response
+                except requests.exceptions.RequestException as e:
+                    logger.error(f"Failed to list datasets: {e}")
+                    pass
+
+            response = make_request()
+
+            datasets = response.json()["data"]["content"]
+            dataset_list = [dataset["name"] for dataset in datasets]
+            if dataset_name not in dataset_list:
+                logger.error(f"Dataset '{dataset_name}' does not exists. Please enter a existing dataset name")
+                return
+            
+            # Get dataset id
+            dataset_id = [dataset["id"] for dataset in datasets if dataset["name"] == dataset_name][0]
+            
+            response = requests.delete(
+                f"{Dataset.BASE_URL}/v1/llm/dataset/{int(dataset_id)}",
+                headers={
+                    'Authorization': f"Bearer {os.getenv('RAGAAI_CATALYST_TOKEN')}",
+                    "X-Project-Id": str(self.project_id)
+                },
+                timeout=Dataset.TIMEOUT
+            )
+            response.raise_for_status()
+            if response.json()["success"]:
+                print(f"Dataset '{dataset_name}' deleted successfully")
+            else:
+                logger.error("Request was not successful")
+        except requests.exceptions.HTTPError as http_err:
+            logger.error(f"HTTP error occurred: {http_err}")
+        except requests.exceptions.ConnectionError as conn_err:
+            logger.error(f"Connection error occurred: {conn_err}")
+        except requests.exceptions.Timeout as timeout_err:
+            logger.error(f"Timeout error occurred: {timeout_err}")
+        except requests.exceptions.RequestException as req_err:
+            logger.error(f"An error occurred: {req_err}")
+        except Exception as e:
+            logger.error(f"An unexpected error occurred: {e}")
+        
