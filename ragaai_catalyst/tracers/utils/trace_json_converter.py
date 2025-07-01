@@ -1,6 +1,4 @@
-import json
 import logging
-import sys
 import uuid
 from datetime import datetime
 from typing import Any, Dict, List
@@ -12,6 +10,8 @@ from ragaai_catalyst.tracers.agentic_tracing.utils.llm_utils import (
     count_tokens,
     get_model_cost,
 )
+
+from ragaai_catalyst.tracers.model_name_extractor import extractor_manager
 
 logger = logging.getLogger(__name__)
 
@@ -182,19 +182,7 @@ def convert_json_format(
                     prompt_tokens + completion_tokens
                 )
 
-                # Get model name from the last span
-                model_names = [
-                    span["attributes"].get("llm.model_name", "") for span in spans
-                ]
-                model_name = next((name for name in reversed(model_names) if name), "")
-                if not model_name and span["attributes"].get("openinference.span.kind")=="LLM":
-                    try:
-                        metadata = span["attributes"].get("metadata") or span["attributes"].get("aiq.metadata")
-                        metadata = json.loads(metadata)
-                        model_name = metadata.get("ls_model_name", "")
-                    except Exception as e:
-                        model_name = ""
-                        logger.error(f"Failed to parse metadata: {e}", exc_info=True)
+                model_name = extractor_manager.extract_model_name(span)
                 if model_name and span["attributes"].get("openinference.span.kind") == "LLM":
                     try:
                         model_costs = get_model_cost()
@@ -283,26 +271,3 @@ def custom_spans(text, span_type, trace_id, parent_id):
             "name_occurrences": 0,
             "hash_id": get_uuid(f"Custom{span_type}Span"),
         }
-
-
-if __name__ == "__main__":
-    if len(sys.argv) != 3:
-        print(
-            "Usage: python convert.py <input_openinference_trace_path> <output_trace_path>"
-        )
-        print(
-            "Example: python convert.py sample_openinference_trace/test.json output.json"
-        )
-        sys.exit(1)
-    input_file_path = sys.argv[1]
-    output_file_path = sys.argv[2]
-    with open(input_file_path, "r") as fin:
-        input_trace = []
-        for line in fin:
-            data = json.loads(line)
-            input_trace.append(data)
-        payload = convert_json_format(input_trace)
-        print(payload)
-        with open(output_file_path, "w") as fout:
-            json.dump(payload, fout)
-            fout.write("\n")
