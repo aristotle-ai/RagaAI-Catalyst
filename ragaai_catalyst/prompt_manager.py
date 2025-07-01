@@ -51,9 +51,21 @@ class PromptManager:
                 project_list = [
                     project["name"] for project in response.json()["data"]["content"]
                 ]
-                self.project_id = [
-                project["id"] for project in response.json()["data"]["content"] if project["name"]==project_name
-                ][0]
+
+                # Check if project exists before trying to get its ID
+                if project_name not in project_list:
+                    logger.error(f"Project '{project_name}' not found. Available projects: {project_list}")
+                    return
+
+                matching_projects = [
+                    project["id"] for project in response.json()["data"]["content"]
+                    if project["name"] == project_name
+                ]
+                if matching_projects:
+                    self.project_id = matching_projects[0]
+                else:
+                    logger.error(f"Project '{project_name}' not found in project list")
+                    return
             elif response.status_code == 401:
                 logger.warning("Received 401 error during fetching project list. Attempting to refresh token.")
                 token = RagaAICatalyst.get_token(force_refresh=True)
@@ -73,9 +85,22 @@ class PromptManager:
                     project_list = [
                         project["name"] for project in response.json()["data"]["content"]
                     ]
-                    self.project_id = [
-                    project["id"] for project in response.json()["data"]["content"] if project["name"]==project_name
-                    ][0]
+
+                    # Check if project exists before trying to get its ID
+                    if project_name not in project_list:
+                        logger.error(f"Project '{project_name}' not found. Available projects: {project_list}")
+                        return
+
+                    # Safe assignment now that we know project exists
+                    matching_projects = [
+                        project["id"] for project in response.json()["data"]["content"]
+                        if project["name"] == project_name
+                    ]
+                    if matching_projects:
+                        self.project_id = matching_projects[0]
+                    else:
+                        logger.error(f"Project '{project_name}' not found in project list")
+                        return
                 else:
                     logger.error("Failed to fetch project list after 401 token refresh")
                     return
@@ -95,10 +120,11 @@ class PromptManager:
             logger.error(f"Error parsing project list: {str(e)}")
             return
 
-        if self.project_name not in project_list:
-            logger.error("Project not found. Please enter a valid project name")
+        except Exception as e:
+            logger.error(f"Unexpected error during project initialization: {str(e)}")
             return
 
+        # Create headers for subsequent API calls
         self.headers = {
                 "Authorization": f'Bearer {os.getenv("RAGAAI_CATALYST_TOKEN")}',
                 "X-Project-Id": str(self.project_id)
@@ -571,14 +597,21 @@ class PromptObject:
         Returns:
             list: A list of variable names found in the prompt text.
         """
-        variables = set()
-        for item in self.text:
-            content = item["content"]
-            for var in self._extract_variable_from_content(content):
-                variables.add(var)
-        if variables:
-            return list(variables)
-        else:
+        try:
+            variables = set()
+            for item in self.text:
+                content = item["content"]
+                for var in self._extract_variable_from_content(content):
+                    variables.add(var)
+            if variables:
+                return list(variables)
+            else:
+                return []
+        except (KeyError, TypeError, AttributeError) as e:
+            logger.error(f"Error extracting variables: {str(e)}")
+            return []
+        except Exception as e:
+            logger.error(f"Unexpected error in get_variables: {str(e)}")
             return []
     
     def _convert_value(self, value, type_):
