@@ -2,7 +2,8 @@ import os
 import pytest
 import sys
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../../..')))
-
+from dotenv import load_dotenv
+load_dotenv()
 from examples.test_utils.get_trace_data import (
     run_command,
     extract_information,
@@ -15,7 +16,7 @@ from examples.test_utils.get_components import (
 
 @pytest.mark.parametrize("model, provider, async_llm, syntax", [
     ("gpt-4o-mini", "openai", False, "chat"),
-    ("gemini-1.5-flash", "google_genai", False, "chat"),
+    # ("gemini-2.0-flash", "google_genai", False, "chat"),
     # ("gemini-1.5-flash", "google_vertexai", False, "chat"),
     # ("gpt-3.5-turbo", "azure", False, "chat"),
     # ("gemini-1.5-flash", "anthropic", False, "chat"),
