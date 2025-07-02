@@ -13,3 +13,4 @@ arxiv
 smolagents
 duckduckgo_search
 langchain-google-genai
+langchain_anthropic

@@ -57,6 +57,10 @@ def initialize_models(model_name: str = "gpt-4o-mini", provider: str = "openai",
     elif provider == "google_genai":
         from langchain_google_genai import ChatGoogleGenerativeAI
         llm = ChatGoogleGenerativeAI(model=model_name, temperature=temperature)
+    elif provider == "anthropic":
+        from langchain_anthropic import ChatAnthropic
+        llm = ChatAnthropic(model=model_name, temperature=temperature)
+    
     
     # elif provider == "google_vertexai":
     #     from langchain_google_vertexai import ChatVertexAI
