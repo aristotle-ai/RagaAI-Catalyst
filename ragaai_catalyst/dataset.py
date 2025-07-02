@@ -322,6 +322,9 @@ class Dataset:
         except (KeyError, json.JSONDecodeError, IndexError) as e:
             logger.error(f"Error parsing dataset list for columns: {str(e)}")
             return []
+        except Exception as e:
+            logger.error(f"Unexpected error in get_dataset_columns while fetching dataset_id for {dataset_name}: {str(e)}")
+            return []
 
         try:
             start_time = time.time()
@@ -376,7 +379,7 @@ class Dataset:
             logger.error(f"Error parsing dataset {dataset_id} columns: {str(e)}")
             return []
         except Exception as e:
-            logger.error(f"Unexpected error in get_dataset_columns: {str(e)}")
+            logger.error(f"Unexpected error in get_dataset_columns for dataset_id {dataset_id}: {str(e)}")
             return []
 
     def create_from_csv(self, csv_path, dataset_name, schema_mapping):
@@ -501,9 +504,6 @@ class Dataset:
                 return None
             except RequestException as e:
                 logger.error(f"HTTP request error while putting CSV to presigned URL: {e}")
-                return None
-            except Exception as e:
-                logger.error(f"Unexpected error in put_csv_to_presignedUrl: {str(e)}")
                 return None
 
         try:
@@ -688,9 +688,6 @@ class Dataset:
             except RequestException as e:
                 logger.error(f"Error while getting presigned URL for add rows: {e}")
                 return None
-            except Exception as e:
-                logger.error(f"Unexpected error in get_presignedUrl for add rows: {str(e)}")
-                return None
 
         try:
             presignedUrl = get_presignedUrl()
@@ -758,9 +755,6 @@ class Dataset:
                 return None
             except RequestException as e:
                 logger.error(f"HTTP request error while putting CSV to presigned URL for add rows: {e}")
-                return None
-            except Exception as e:
-                logger.error(f"Unexpected error in put_csv_to_presignedUrl for add rows: {str(e)}")
                 return None
 
         try:
@@ -1256,7 +1250,7 @@ class Dataset:
                         logger.error(f"Unknown status received: {status_json}")
                         return JOB_STATUS_FAILED
                 else:
-                    logger.error("Request was not successful")
+                    logger.error("Request was not successful when getting job status")
                     return JOB_STATUS_FAILED
             elif response.status_code == 401:
                 logger.warning("Received 401 error during getting job status. Attempting to refresh token.")
@@ -1287,7 +1281,7 @@ class Dataset:
                             logger.error(f"Unknown status received: {status_json}")
                             return JOB_STATUS_FAILED
                     else:
-                        logger.error("Request was not successful")
+                        logger.error("Request was not successful when getting job status")
                         return JOB_STATUS_FAILED
                 else:
                     logger.error("Failed to get job status after 401 token refresh")
@@ -1500,7 +1494,7 @@ class Dataset:
                 if response.json()["success"]:
                     logger.info(f"Dataset '{dataset_name}' deleted successfully")
                 else:
-                    logger.error("Request was not successful")
+                    logger.error("Request was not successful when deleting dataset")
             elif response.status_code == 401:
                 logger.warning("Received 401 error during deleting dataset. Attempting to refresh token.")
                 token = RagaAICatalyst.get_token(force_refresh=True)
@@ -1521,7 +1515,7 @@ class Dataset:
                     if response.json()["success"]:
                         logger.info(f"Dataset '{dataset_name}' deleted successfully")
                     else:
-                        logger.error("Request was not successful")
+                        logger.error("Request was not successful when deleting dataset")
                 else:
                     logger.error("Failed to delete dataset after 401 token refresh")
             else:
@@ -1531,5 +1525,5 @@ class Dataset:
         except RequestException as e:
             logger.error(f"Error deleting dataset: {e}")
         except Exception as e:
-            logger.error(f"An unexpected error occurred: {e}")
+            logger.error(f"An unexpected error occurred when deleting dataset: {e}")
         
