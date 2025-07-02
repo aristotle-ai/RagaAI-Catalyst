@@ -8,7 +8,8 @@ langchain_openai
 PyPDF2
 haystack
 haystack-ai
-llama-index== 0.12.44
+llama-index
 arxiv
 smolagents
 duckduckgo_search
+langchain-google-genai
