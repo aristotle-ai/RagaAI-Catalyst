@@ -170,7 +170,7 @@ class Tracer(AgenticTracing):
             logger.error(f"Failed to retrieve projects list: {e}")
 
         # Handle agentic tracers
-        if tracer_type == "agentic" or tracer_type.startswith("agentic/") or tracer_type == "langchain" or tracer_type == "llamaindex" or tracer_type == "google-adk":
+        if tracer_type == "agentic" or tracer_type.startswith("agentic/") or tracer_type == "langchain" or tracer_type == "llamaindex" or tracer_type == "google-adk" or tracer_type == "mcp":
             # Setup instrumentors based on tracer type
             instrumentors = []
 
@@ -317,6 +317,24 @@ class Tracer(AgenticTracing):
             elif tracer_type == "google-adk":
                 from  openinference.instrumentation.google_adk import GoogleADKInstrumentor
                 instrumentors += [(GoogleADKInstrumentor, [])]
+
+            elif tracer_type == "mcp":
+                from  openinference.instrumentation.mcp import MCPInstrumentor
+                instrumentors += [(MCPInstrumentor, [])]
+
+                try:
+                    from openinference.instrumentation.openai_agents import OpenAIAgentsInstrumentor
+                    instrumentors.append((OpenAIAgentsInstrumentor, []))
+                except (ImportError, ModuleNotFoundError):
+                    logger.debug("OpenAI Agents not available in environment")
+
+                try:
+                    from openinference.instrumentation.openai import OpenAIInstrumentor
+                    instrumentors.append((OpenAIInstrumentor, []))
+                except (ImportError, ModuleNotFoundError):
+                    logger.debug("OpenAI not available in environment")
+
+
             else:
                 # Unknown agentic tracer type
                 logger.warning(f"Unknown agentic tracer type: {tracer_type}")
