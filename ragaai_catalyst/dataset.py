@@ -113,8 +113,6 @@ class Dataset:
             logger.error(f"Error while fetching project list: {e}")
         except (KeyError, json.JSONDecodeError) as e:
             logger.error(f"Error parsing project list: {str(e)}")
-        except IndexError as e:
-            logger.error(f"Project '{project_name}' not found in project list (IndexError)")
         except Exception as e:
             logger.error(f"Unexpected error during dataset initialization: {str(e)}")
 
@@ -195,7 +193,7 @@ class Dataset:
         
         headers = {
             "Authorization": f"Bearer {os.getenv('RAGAAI_CATALYST_TOKEN')}",
-            "X-Project-Name": self.project_name,
+            "X-Project-Id": str(self.project_id),
         }
         try:
             start_time = time.time()
