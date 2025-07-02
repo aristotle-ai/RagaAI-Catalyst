@@ -459,12 +459,19 @@ class Dataset:
             if not url:
                 logger.error("URL is None or empty, cannot upload CSV to presigned URL")
                 return None
-                
+
+            if not os.path.exists(csv_path):
+                logger.error(f"CSV file does not exist: {csv_path}")
+                return None
+
             headers = {
                 'Content-Type': 'text/csv',
                 'x-ms-blob-type': 'BlockBlob',
             }
             try:
+                file_size = os.path.getsize(csv_path)
+                logger.debug(f"Uploading CSV file: {csv_path} (size: {file_size} bytes)")
+
                 with open(csv_path, 'rb') as file:
                     start_time = time.time()
                     response = session_manager.make_request_with_retry(
@@ -476,12 +483,24 @@ class Dataset:
                     )
                     elapsed_ms = (time.time() - start_time) * 1000
                     logger.debug(f"API Call: [PUT] presigned-url | Status: {response.status_code} | Time: {elapsed_ms:.2f}ms")
+
+                    if response.status_code in [200, 201]:
+                        logger.debug(f"Successfully uploaded {file_size} bytes to presigned URL")
+                    else:
+                        logger.error(f"Upload failed with status {response.status_code}: {response.text[:200]}")
+
                     return response
+            except FileNotFoundError as e:
+                logger.error(f"CSV file not found: {csv_path}")
+                return None
+            except PermissionError as e:
+                logger.error(f"Permission denied accessing CSV file: {csv_path}")
+                return None
             except (PoolError, MaxRetryError, NewConnectionError, ConnectionError, Timeout, RemoteDisconnected) as e:
                 session_manager.handle_request_exceptions(e, "putting CSV to presigned URL")
                 return None
             except RequestException as e:
-                logger.error(f"Error while putting CSV to presigned URL: {e}")
+                logger.error(f"HTTP request error while putting CSV to presigned URL: {e}")
                 return None
             except Exception as e:
                 logger.error(f"Unexpected error in put_csv_to_presignedUrl: {str(e)}")
@@ -489,11 +508,16 @@ class Dataset:
 
         try:
             put_csv_response = put_csv_to_presignedUrl(url)
-            if put_csv_response is None or put_csv_response.status_code not in (200, 201):
-                logger.error('Unable to put csv to the presignedUrl')
+            if put_csv_response is None:
+                logger.error('Failed to upload CSV to presigned URL: No response received')
                 return
+            elif put_csv_response.status_code not in (200, 201):
+                logger.error(f'Failed to upload CSV to presigned URL: HTTP {put_csv_response.status_code}')
+                return
+            else:
+                logger.info('CSV file successfully uploaded to presigned URL')
         except Exception as e:
-            logger.error(f"Error in put_csv_to_presignedUrl: {e}")
+            logger.error(f"Error during CSV upload to presigned URL: {e}")
             return
 
         ## Upload csv to elastic
@@ -577,10 +601,11 @@ class Dataset:
             }
             upload_csv_response = upload_csv_to_elastic(data)
             if upload_csv_response and upload_csv_response.get('success'):
-                logger.info(upload_csv_response['message'])
+                logger.info(f"Dataset creation successful: {upload_csv_response['message']}")
                 self.jobId = upload_csv_response['data']['jobId']
+                logger.info(f"Job ID for dataset creation: {self.jobId}")
             else:
-                logger.error('Unable to upload csv')
+                logger.error('Dataset creation failed: Unable to upload CSV metadata to server')
         except (KeyError, json.JSONDecodeError, IndexError, IOError, UnicodeError) as e:
             logger.error(f"Error parsing data in create_from_csv: {str(e)}")
         except Exception as e:
@@ -689,14 +714,21 @@ class Dataset:
         # Upload CSV to presigned URL
         def put_csv_to_presignedUrl(url):
             if not url:
-                logger.error("URL is None or empty, cannot upload CSV to presigned URL")
+                logger.error("URL is None or empty, cannot upload CSV to presigned URL for add rows")
                 return None
-                
+
+            if not os.path.exists(csv_path):
+                logger.error(f"CSV file does not exist for add rows: {csv_path}")
+                return None
+
             headers = {
                 'Content-Type': 'text/csv',
                 'x-ms-blob-type': 'BlockBlob',
             }
             try:
+                file_size = os.path.getsize(csv_path)
+                logger.debug(f"Uploading CSV file for add rows: {csv_path} (size: {file_size} bytes)")
+
                 with open(csv_path, 'rb') as file:
                     start_time = time.time()
                     response = session_manager.make_request_with_retry(
@@ -708,12 +740,24 @@ class Dataset:
                     )
                     elapsed_ms = (time.time() - start_time) * 1000
                     logger.debug(f"API Call: [PUT] presigned-url for add rows | Status: {response.status_code} | Time: {elapsed_ms:.2f}ms")
+
+                    if response.status_code in [200, 201]:
+                        logger.debug(f"Successfully uploaded {file_size} bytes to presigned URL for add rows")
+                    else:
+                        logger.error(f"Add rows upload failed with status {response.status_code}: {response.text[:200]}")
+
                     return response
+            except FileNotFoundError as e:
+                logger.error(f"CSV file not found for add rows: {csv_path}")
+                return None
+            except PermissionError as e:
+                logger.error(f"Permission denied accessing CSV file for add rows: {csv_path}")
+                return None
             except (PoolError, MaxRetryError, NewConnectionError, ConnectionError, Timeout, RemoteDisconnected) as e:
                 session_manager.handle_request_exceptions(e, "putting CSV to presigned URL for add rows")
                 return None
             except RequestException as e:
-                logger.error(f"Error while putting CSV to presigned URL for add rows: {e}")
+                logger.error(f"HTTP request error while putting CSV to presigned URL for add rows: {e}")
                 return None
             except Exception as e:
                 logger.error(f"Unexpected error in put_csv_to_presignedUrl for add rows: {str(e)}")
@@ -721,11 +765,16 @@ class Dataset:
 
         try:
             put_csv_response = put_csv_to_presignedUrl(url)
-            if put_csv_response is None or put_csv_response.status_code not in (200, 201):
-                logger.error('Unable to put csv to the presignedUrl for add rows')
+            if put_csv_response is None:
+                logger.error('Failed to upload CSV to presigned URL for add rows: No response received')
                 return
+            elif put_csv_response.status_code not in (200, 201):
+                logger.error(f'Failed to upload CSV to presigned URL for add rows: HTTP {put_csv_response.status_code}')
+                return
+            else:
+                logger.info('CSV file successfully uploaded to presigned URL')
         except Exception as e:
-            logger.error(f"Error in put_csv_to_presignedUrl for add rows: {e}")
+            logger.error(f"Error during CSV upload to presigned URL for add rows: {e}")
             return
 
         # Prepare schema mapping (assuming same mapping as original dataset)
@@ -878,10 +927,11 @@ class Dataset:
                 # Check response
                 response_data = response.json()
                 if response_data.get('success', False):
-                    logger.info(f"{response_data['message']}")
+                    logger.info(f"Add rows operation successful: {response_data['message']}")
                     self.jobId = response_data['data']['jobId']
+                    logger.info(f"Job ID for add rows operation: {self.jobId}")
                 else:
-                    logger.error(response_data.get('message', 'Failed to add rows'))
+                    logger.error(f"Add rows operation failed: {response_data.get('message', 'Failed to add rows')}")
             elif response.status_code == 400:
                 logger.error(response.json().get("message", "Failed to add rows"))
             elif response.status_code == 401:
