@@ -546,15 +546,14 @@ if __name__ == "__main__":
     args = parser.parse_args()
     
 
-    with tracer:
-        response =  asyncio.run(get_llm_response(
-            prompt="Hello, how are you? Explain in one sentence.",
-            model=args.model,
-            provider=args.provider,
-            temperature=0.7,
-            max_tokens=100,
-            async_llm=args.async_llm
-        ))
+    response =  asyncio.run(get_llm_response(
+        prompt="Hello, how are you? Explain in one sentence.",
+        model=args.model,
+        provider=args.provider,
+        temperature=0.7,
+        max_tokens=100,
+        async_llm=args.async_llm
+    ))
 
 
 

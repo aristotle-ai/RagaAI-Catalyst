@@ -1,0 +1,16 @@
+langchain-community
+sentence-transformers
+pytest
+chromadb
+crewai
+langgraph
+langchain_openai
+PyPDF2
+haystack
+haystack-ai
+llama-index
+arxiv
+smolagents
+duckduckgo_search
+langchain-google-genai
+langchain_anthropic
