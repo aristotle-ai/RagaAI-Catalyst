@@ -24,12 +24,14 @@ def sample_text(synthetic_gen):
     text_file = doc_path # Update this path as needed
     return synthetic_gen.process_document(input_data=text_file)
 
+
+    
 def test_special_chars_csv_processing(synthetic_gen):
     """Test processing CSV with special characters"""
-    with pytest.raises(Exception):
-        synthetic_gen.process_document(input_data=valid_csv_path)
-    
-
+    # Should not raise an exception as the implementation uses errors="ignore"
+    result = synthetic_gen.process_document(input_data=valid_csv_path)
+    # Assert that the result contains text from the CSV
+    assert len(result) > 0
 def test_invalid_llm_proxy(synthetic_gen, sample_text):
     """Test behavior with invalid internal_llm_proxy URL"""
     with pytest.raises(Exception, match="No connection adapters were found for"):

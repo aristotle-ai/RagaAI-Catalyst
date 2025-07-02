@@ -25,9 +25,17 @@ catalyst = RagaAICatalyst(
     secret_key=os.getenv('RAGAAI_CATALYST_SECRET_KEY'), 
     base_url=os.getenv('RAGAAI_CATALYST_BASE_URL')
 )
+project_name = 'llamaindex'
+try:
+    project = catalyst.create_project(
+        project_name=project_name,
+        usecase="Agentic Application" #default usecase Q/A
+    )
+except:
+    print("Project Already exists")
 # Initialize tracer
 tracer = Tracer(
-    project_name='prompt_metric_dataset',#os.getenv("RAGAAI_PROJECT_NAME"),
+    project_name=project_name,#os.getenv("RAGAAI_PROJECT_NAME"),
     dataset_name='pytest_dataset',#os.getenv("RAGAAI_DATASET_NAME"),
     tracer_type="agentic/llamaindex",
 )
@@ -104,5 +112,4 @@ if __name__ == "__main__":
     parser.add_argument("--info", type=str, default="testing-legal-rag", help="testing description")
     args = parser.parse_args()
 
-    with tracer:
-        main(args.info)
+    main(args.info)
