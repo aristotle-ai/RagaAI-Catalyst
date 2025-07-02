@@ -14,7 +14,6 @@ import json
 import numpy as np
 from opentelemetry.sdk import trace as trace_sdk
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
-from ragaai_catalyst.tracers.exporters.file_span_exporter import FileSpanExporter
 from ragaai_catalyst.tracers.utils import get_unique_key
 from openinference.instrumentation.langchain import LangChainInstrumentor
 from ragaai_catalyst import RagaAICatalyst
