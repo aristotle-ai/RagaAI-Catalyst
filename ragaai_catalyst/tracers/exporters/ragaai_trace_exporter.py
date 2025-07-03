@@ -93,26 +93,30 @@ class RAGATraceExporter(SpanExporter):
                 trace_id = span_json.get("context").get("trace_id")
                 if trace_id is None:
                     logger.error("Trace ID is None")
-                
-                if trace_id not in self.trace_spans:
-                    self.trace_spans[trace_id] = list()
+                    continue
 
                 if span_json.get("attributes").get("openinference.span.kind", None) is None:
                     span_json["attributes"]["openinference.span.kind"] = "UNKNOWN"
 
                 # Extract dataset name from span attributes for proper isolation
                 dataset_name = self._get_dataset_from_span(span_json)
+                
+                # Create composite key (dataset_name, trace_id) for proper isolation
+                trace_key = (dataset_name, trace_id)
+                
+                if trace_key not in self.trace_spans:
+                    self.trace_spans[trace_key] = list()
 
-                self.trace_spans[trace_id].append(span_json)
+                self.trace_spans[trace_key].append(span_json)
 
                 if span_json["parent_id"] is None:
-                    trace = self.trace_spans[trace_id]
+                    trace = self.trace_spans[trace_key]
                     try:
                         self.process_complete_trace(trace, trace_id, dataset_name)
                     except Exception as e:
                         logger.error(f"Error processing complete trace: {e}")
                     try:
-                        del self.trace_spans[trace_id]
+                        del self.trace_spans[trace_key]
                     except Exception as e:
                         logger.error(f"Error deleting trace: {e}")
             except Exception as e:
@@ -150,8 +154,9 @@ class RAGATraceExporter(SpanExporter):
     def shutdown(self):
         # Process any remaining traces during shutdown
         logger.debug("Reached shutdown of exporter")
-        for trace_id, spans in self.trace_spans.items():
-            self.process_complete_trace(spans, trace_id)
+        for trace_key, spans in self.trace_spans.items():
+            dataset_name, trace_id = trace_key  # Unpack the composite key
+            self.process_complete_trace(spans, trace_id, dataset_name)
         self.trace_spans.clear()
 
     def process_complete_trace(self, spans, trace_id, dataset_name=None):
