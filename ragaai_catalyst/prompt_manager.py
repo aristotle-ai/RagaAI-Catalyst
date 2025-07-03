@@ -147,7 +147,7 @@ class PromptManager:
             prompt_list = prompt.list_prompts(self.base_url, self.headers, self.timeout)
             return prompt_list
         except Exception as e:
-            logger.error(f"Error listing prompts: {str(e)}")
+            logger.error(f"Error listing prompts: {e}")
             return []
     
     def get_prompt(self, prompt_name, version=None):
@@ -567,28 +567,77 @@ class PromptObject:
             **kwargs: Keyword arguments where keys are variable names and values are their replacements.
 
         Returns:
-            str: The compiled prompt with variables replaced.
-
-        Raises:
-            ValueError: If there are missing or extra variables, or if a value is not a string.
+            str: The compiled prompt with variables replaced, or None if error occurs.
         """
-        required_variables = self.get_variables()
-        provided_variables = set(kwargs.keys())
+        try:
+            required_variables = self.get_variables()
+            provided_variables = set(kwargs.keys())
 
-        missing_variables = [item for item in required_variables if item not in provided_variables]
-        extra_variables = [item for item in provided_variables if item not in required_variables]
+            missing_variables = [item for item in required_variables if item not in provided_variables]
+            extra_variables = [item for item in provided_variables if item not in required_variables]
 
-        if missing_variables:
-            raise ValueError(f"Missing variable(s): {', '.join(missing_variables)}")
-        if extra_variables:
-            raise ValueError(f"Extra variable(s) provided: {', '.join(extra_variables)}")
+            if missing_variables:
+                logger.error(f"Missing variable(s): {', '.join(missing_variables)}")
+                return None
+            if extra_variables:
+                logger.error(f"Extra variable(s) provided: {', '.join(extra_variables)}")
+                return None
 
-        updated_text = copy.deepcopy(self.text)
+            # Validate that self.text exists and is properly formatted
+            if not self.text:
+                logger.error("Prompt text is empty or None")
+                return None
 
-        for item in updated_text:
-            item["content"] = self._add_variable_value_to_content(item["content"], kwargs)
+            if not isinstance(self.text, list):
+                logger.error(f"Prompt text must be a list, got {type(self.text)}")
+                return None
 
-        return updated_text
+            try:
+                updated_text = copy.deepcopy(self.text)
+            except Exception as e:
+                logger.error(f"Error creating deep copy of prompt text: {e}")
+                return None
+
+            for i, item in enumerate(updated_text):
+                try:
+                    # Validate item structure
+                    if not isinstance(item, dict):
+                        logger.error(f"Item {i} is not a dictionary: {type(item)}")
+                        return None
+
+                    if "content" not in item:
+                        logger.error(f"Item {i} missing 'content' key: {item}")
+                        return None
+
+                    if not isinstance(item["content"], str):
+                        logger.error(f"Item {i} content is not a string: {type(item['content'])}")
+                        return None
+
+                    # Replace variables in content
+                    try:
+                        item["content"] = self._add_variable_value_to_content(item["content"], kwargs)
+                    except Exception as e:
+                        logger.error(f"Error replacing variables in item {i}: {e}")
+                        return None
+
+                except KeyError as e:
+                    logger.error(f"Missing key in prompt item {i}: {e}")
+                    return None
+                except Exception as e:
+                    logger.error(f"Unexpected error processing prompt item {i}: {e}")
+                    return None
+
+            return updated_text
+
+        except AttributeError as e:
+            logger.error(f"Missing attribute in compile: {e}")
+            return None
+        except TypeError as e:
+            logger.error(f"Type error in compile: {e}")
+            return None
+        except Exception as e:
+            logger.error(f"Unexpected error in compile: {e}")
+            return None
     
     def get_variables(self):
         """
