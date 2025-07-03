@@ -102,24 +102,17 @@ class RAGATraceExporter(SpanExporter):
 
                 # Extract dataset name from span attributes for proper isolation
                 dataset_name = self._get_dataset_from_span(span_json)
-                
-                # Create composite key (dataset_name, trace_id) for proper isolation
-                trace_key = (dataset_name, trace_id)
-                                
-                if trace_key not in self.trace_spans:
-                    self.trace_spans[trace_key] = list()
 
-                self.trace_spans[trace_key].append(span_json)
+                self.trace_spans[trace_id].append(span_json)
 
-                # Check if this is a root span (parent_id is None) to process complete trace
                 if span_json["parent_id"] is None:
-                    trace = self.trace_spans[trace_key]
+                    trace = self.trace_spans[trace_id]
                     try:
                         self.process_complete_trace(trace, trace_id, dataset_name)
                     except Exception as e:
                         logger.error(f"Error processing complete trace: {e}")
                     try:
-                        del self.trace_spans[trace_key]
+                        del self.trace_spans[trace_id]
                     except Exception as e:
                         logger.error(f"Error deleting trace: {e}")
             except Exception as e:
@@ -157,9 +150,8 @@ class RAGATraceExporter(SpanExporter):
     def shutdown(self):
         # Process any remaining traces during shutdown
         logger.debug("Reached shutdown of exporter")
-        for trace_key, spans in self.trace_spans.items():
-            dataset_name, trace_id = trace_key
-            self.process_complete_trace(spans, trace_id, dataset_name)
+        for trace_id, spans in self.trace_spans.items():
+            self.process_complete_trace(spans, trace_id)
         self.trace_spans.clear()
 
     def process_complete_trace(self, spans, trace_id, dataset_name=None):
@@ -189,7 +181,7 @@ class RAGATraceExporter(SpanExporter):
                 self.user_details["dataset_name"] = dataset_name
                 
                 # Process with updated dataset
-                self._process_trace_with_current_dataset(spans, trace_id)
+                self._process_trace_with_current_dataset(spans, trace_id, self.dataset_name)
                 
             finally:
                 # Restore original values
@@ -198,9 +190,9 @@ class RAGATraceExporter(SpanExporter):
         else:
             # Use original dataset
             logger.debug(f"Trace {trace_id} using original dataset: {self.dataset_name}")
-            self._process_trace_with_current_dataset(spans, trace_id)
+            self._process_trace_with_current_dataset(spans, trace_id, self.dataset_name)
 
-    def _process_trace_with_current_dataset(self, spans, trace_id):
+    def _process_trace_with_current_dataset(self, spans, trace_id, dataset_name):
         """
         Process the trace with the current dataset (original logic from process_complete_trace).
         """
@@ -220,7 +212,7 @@ class RAGATraceExporter(SpanExporter):
         try:
             if self.post_processor != None:
                 ragaai_trace_details['trace_file_path'] = self.post_processor(ragaai_trace_details['trace_file_path'])
-            self.upload_trace(ragaai_trace_details, trace_id)
+            self.upload_trace(ragaai_trace_details, trace_id, dataset_name)
         except Exception as e:
             print(f"Error uploading trace {trace_id}: {e}")
 
@@ -349,7 +341,7 @@ class RAGATraceExporter(SpanExporter):
             print(f"Error converting trace {trace_id}: {str(e)}")
             return None
 
-    def upload_trace(self, ragaai_trace_details, trace_id):
+    def upload_trace(self, ragaai_trace_details, trace_id, dataset_name):
         filepath = ragaai_trace_details['trace_file_path']
         hash_id = ragaai_trace_details['hash_id']
         zip_path = ragaai_trace_details['code_zip_path']
@@ -359,7 +351,7 @@ class RAGATraceExporter(SpanExporter):
             zip_path=zip_path,
             project_name=self.project_name,
             project_id=self.project_id,
-            dataset_name=self.dataset_name,
+            dataset_name=dataset_name,
             user_details=self.user_details,
             base_url=self.base_url,
             tracer_type=self.tracer_type,
