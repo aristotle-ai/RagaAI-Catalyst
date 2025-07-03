@@ -53,9 +53,6 @@ class DatasetSpanProcessor(SpanProcessor):
                 # Set the dataset attribute on the span
                 span.set_attribute("ragaai.dataset", dataset_name)
                 
-                # Optionally add a marker that this was auto-set
-                span.set_attribute("ragaai.auto_dataset", True)
-                
                 # Add context source indicator for debugging
                 context_source = "context" if context.get_value("ragaai.dataset_name") else "default"
                 span.set_attribute("ragaai.dataset_source", context_source)
