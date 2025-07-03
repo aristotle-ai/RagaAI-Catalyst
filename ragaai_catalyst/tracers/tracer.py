@@ -328,13 +328,6 @@ class Tracer(AgenticTracing):
                 except (ImportError, ModuleNotFoundError):
                     logger.debug("OpenAI Agents not available in environment")
 
-                # try:
-                #     from openinference.instrumentation.openai import OpenAIInstrumentor
-                #     instrumentors.append((OpenAIInstrumentor, []))
-                # except (ImportError, ModuleNotFoundError):
-                #     logger.debug("OpenAI not available in environment")
-
-
             else:
                 # Unknown agentic tracer type
                 logger.warning(f"Unknown agentic tracer type: {tracer_type}")
