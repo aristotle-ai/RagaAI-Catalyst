@@ -2,7 +2,8 @@ import os
 import pytest
 import sys
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../../..')))
-
+from dotenv import load_dotenv
+load_dotenv()
 from examples.test_utils.get_trace_data import (
     run_command,
     extract_information,
@@ -15,10 +16,11 @@ from examples.test_utils.get_components import (
 
 @pytest.mark.parametrize("model, provider, async_llm, syntax", [
     ("gpt-4o-mini", "openai", False, "chat"),
-    ("gemini-1.5-flash", "google_genai", False, "chat"),
+    ("gemini-2.0-flash", "google_genai", False, "chat"),
+    ("claude-3-5-sonnet-20240620", "anthropic", False, "chat"),
     # ("gemini-1.5-flash", "google_vertexai", False, "chat"),
-    # ("gpt-3.5-turbo", "azure", False, "chat"),
-    # ("gemini-1.5-flash", "anthropic", False, "chat"),
+    # ("gpt-4o-mini", "azure", False, "chat"),
+    
 ])
 def test_research_assistant(model: str, provider: str, async_llm: bool, syntax: str):
     # Build the command to run research_assistant.py with the provided arguments
